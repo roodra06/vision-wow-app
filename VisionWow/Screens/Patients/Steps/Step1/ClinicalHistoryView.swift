@@ -40,6 +40,10 @@ struct ClinicalHistoryView: View {
     @State private var seniorityUnit: SeniorityUnit = .years
     @State private var seniorityValueText: String = ""
 
+    // ✅ Condición laboral (UI local, no persistente por ahora)
+    @State private var isPlantaUI: Bool = false
+    @State private var isEventualUI: Bool = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
@@ -51,6 +55,10 @@ struct ClinicalHistoryView: View {
             .padding(.bottom, 28)
         }
         .onAppear {
+            // ✅ Asegura patient no-nil para foto/nombre
+            if encounter.patient == nil {
+                encounter.patient = Patient()
+            }
             hydrateSeniorityUIFromModel()
         }
         .sheet(isPresented: $showCamera) {
@@ -80,7 +88,6 @@ struct ClinicalHistoryView: View {
                 profileAvatar
 
                 VStack(alignment: .leading, spacing: 8) {
-                    // Nuevo paciente + nombre (placeholder hasta que exista el campo en Encounter)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Image(systemName: "person.text.rectangle")
@@ -92,16 +99,13 @@ struct ClinicalHistoryView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        // TODO: cuando tengas el nombre real en Encounter, sustituye aquí:
-                        // Text(encounter.patientFullName.isEmpty ? "Sin nombre" : encounter.patientFullName)
-                        Text("Sin nombre")
+                        Text(fullNameText)
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                     }
 
-                    // Empresa
                     HStack(spacing: 8) {
                         Image(systemName: "building.2.fill")
                             .font(.system(size: 13, weight: .semibold))
@@ -113,7 +117,6 @@ struct ClinicalHistoryView: View {
                             .lineLimit(1)
                     }
 
-                    // ID
                     HStack(spacing: 8) {
                         Image(systemName: "number")
                             .font(.system(size: 13, weight: .semibold))
@@ -129,7 +132,6 @@ struct ClinicalHistoryView: View {
                 Spacer(minLength: 0)
             }
 
-            // Progreso
             VStack(spacing: 6) {
                 HStack {
                     Text("Paso \(stepIndex) de \(totalSteps)")
@@ -151,6 +153,13 @@ struct ClinicalHistoryView: View {
                 )
                 .shadow(color: BrandColors.secondary.opacity(0.06), radius: 14, x: 0, y: 8)
         )
+    }
+
+    private var fullNameText: String {
+        let first = (encounter.patient?.firstName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let last  = (encounter.patient?.lastName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let combined = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
+        return combined.isEmpty ? "Sin nombre" : combined
     }
 
     private var profileAvatar: some View {
@@ -224,7 +233,6 @@ struct ClinicalHistoryView: View {
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: seniorityUnit) { _, _ in
-                    // Cambiar unidad limpia el valor y el modelo
                     seniorityValueText = ""
                     encounter.seniorityYears = nil
                     encounter.seniorityMonths = nil
@@ -410,38 +418,40 @@ struct ClinicalHistoryView: View {
         )
     }
 
-    // MARK: - Exclusividad Planta / Eventual
+    // MARK: - Exclusividad Planta / Eventual (UI local)
 
     private var plantaBinding: Binding<Bool> {
         Binding(
-            get: { encounter.isPlanta },
+            get: { isPlantaUI },
             set: { newValue in
-                encounter.isPlanta = newValue
-                if newValue { encounter.isEventual = false }
+                isPlantaUI = newValue
+                if newValue { isEventualUI = false }
             }
         )
     }
 
     private var eventualBinding: Binding<Bool> {
         Binding(
-            get: { encounter.isEventual },
+            get: { isEventualUI },
             set: { newValue in
-                encounter.isEventual = newValue
-                if newValue { encounter.isPlanta = false }
+                isEventualUI = newValue
+                if newValue { isPlantaUI = false }
             }
         )
     }
 
-    // MARK: - Foto persistente
+    // MARK: - Foto persistente (en Patient)
 
     private var profileUIImage: UIImage? {
-        guard let data = encounter.profileImageData else { return nil }
+        guard let data = encounter.patient?.profileImageData else { return nil }
         return UIImage(data: data)
     }
 
     private func persistProfileImage(_ img: UIImage) {
-        // JPEG ligero para no inflar la BD
-        encounter.profileImageData = img.jpegData(compressionQuality: 0.82)
+        if encounter.patient == nil {
+            encounter.patient = Patient()
+        }
+        encounter.patient?.profileImageData = img.jpegData(compressionQuality: 0.82)
     }
 
     // MARK: - Antigüedad: UI <-> modelo
@@ -552,7 +562,6 @@ struct ClinicalHistoryView: View {
     ) -> some View {
 
         ZStack {
-            // 1) Picker real pero invisible (para evitar el texto azul)
             Picker("", selection: selection) {
                 Text(placeholder).tag("")
                 ForEach(ShiftOption.allCases) { opt in
@@ -561,10 +570,9 @@ struct ClinicalHistoryView: View {
             }
             .pickerStyle(.menu)
             .labelsHidden()
-            .opacity(0.02) // ✅ evita que se vea el label azul
+            .opacity(0.02)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // 2) Input visible (bonito)
             HStack(spacing: 10) {
                 Image(systemName: "clock.arrow.2.circlepath")
                     .font(.system(size: 13, weight: .semibold))
@@ -588,44 +596,13 @@ struct ClinicalHistoryView: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isError ? BrandColors.danger.opacity(0.90) : BrandColors.accent.opacity(0.12), lineWidth: 1)
             )
-            .allowsHitTesting(false) // ✅ el tap llega al Picker invisible
+            .allowsHitTesting(false)
         }
         .contentShape(Rectangle())
     }
-
-
-//
-// MARK: - Progress Bar
-//
-struct ProgressPillBar: View {
-    let progress: CGFloat
-    var height: CGFloat = 10
-
-    @State private var animatedProgress: CGFloat = 0
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.black.opacity(0.06))
-                Capsule()
-                    .fill(BrandColors.strokeGradient)
-                    .frame(width: max(0, min(geo.size.width, geo.size.width * animatedProgress)))
-            }
-            .frame(height: height)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.45)) {
-                    animatedProgress = progress
-                }
-            }
-            .onChange(of: progress) { _, newValue in
-                withAnimation(.easeInOut(duration: 0.45)) {
-                    animatedProgress = newValue
-                }
-            }
-        }
-        .frame(height: height)
-    }
 }
+
+//
 
 //
 // MARK: - TimePickerField (HH:mm en String?)
@@ -757,5 +734,4 @@ struct CameraCaptureView: UIViewControllerRepresentable {
             }
         }
     }
-}
 }

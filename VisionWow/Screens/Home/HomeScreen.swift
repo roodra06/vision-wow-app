@@ -19,7 +19,7 @@ struct HomeScreen: View {
         }
         let term = search.lowercased()
         return encounters.filter { e in
-            let full = "\(e.firstName) \(e.lastName)".lowercased()
+            let full = "\(e.patient?.firstName ?? "") \(e.patient?.lastName ?? "")".lowercased()
             let comp = e.companyName.lowercased()
             return full.contains(term) || comp.contains(term) || e.id.uuidString.lowercased().contains(term)
         }
@@ -90,7 +90,8 @@ struct HomeScreen: View {
     }
 
     private func row(_ e: Encounter) -> some View {
-        let name = "\(e.firstName) \(e.lastName)".trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = "\(e.patient?.firstName ?? "") \(e.patient?.lastName ?? "")"
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(name.isEmpty ? "Sin nombre" : name)

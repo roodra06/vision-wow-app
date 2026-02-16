@@ -5,13 +5,6 @@
 //  Created by Rodrigo Marcos on 27/12/25.
 //
 
-//
-//  EncounterValidator.swift
-//  VisionWow
-//
-//  Created by Rodrigo Marcos on 27/12/25.
-//
-
 import Foundation
 
 enum EncounterValidator {
@@ -29,6 +22,7 @@ enum EncounterValidator {
             }
         }
 
+        // Datos corporativos (Encounter)
         if e.seniorityYears == nil { errs.append(.init(fieldKey: "seniorityYears", message: "Campo obligatorio.")) }
         if e.seniorityMonths == nil { errs.append(.init(fieldKey: "seniorityMonths", message: "Campo obligatorio.")) }
         if e.seniorityWeeks == nil { errs.append(.init(fieldKey: "seniorityWeeks", message: "Campo obligatorio.")) }
@@ -44,18 +38,25 @@ enum EncounterValidator {
             errs.append(.init(fieldKey: "companyEmail", message: "Correo de empresa inválido."))
         }
 
-        req(e.firstName, "firstName")
-        req(e.lastName, "lastName")
-        if e.dob == nil { errs.append(.init(fieldKey: "dob", message: "Campo obligatorio.")) }
+        // Datos personales (Patient)
+        guard let p = e.patient else {
+            // Si no hay paciente asociado, marca campos clave como faltantes
+            errs.append(.init(fieldKey: "patient", message: "Selecciona o crea un paciente."))
+            return errs
+        }
 
-        if e.sex == SexOption.noEspecificado.rawValue {
+        req(p.firstName, "firstName")
+        req(p.lastName, "lastName")
+        if p.dob == nil { errs.append(.init(fieldKey: "dob", message: "Campo obligatorio.")) }
+
+        if p.sex == SexOption.noEspecificado.rawValue {
             errs.append(.init(fieldKey: "sex", message: "Selecciona una opción."))
         }
 
-        req(e.cellPhone, "cellPhone")
+        req(p.cellPhone, "cellPhone")
 
-        req(e.personalEmail, "personalEmail")
-        if !e.personalEmail.isEmpty && !isEmail(e.personalEmail) {
+        req(p.personalEmail, "personalEmail")
+        if !p.personalEmail.isEmpty && !isEmail(p.personalEmail) {
             errs.append(.init(fieldKey: "personalEmail", message: "Correo personal inválido."))
         }
 
@@ -89,7 +90,9 @@ enum EncounterValidator {
         req(e.dp, "dp")
         req(e.lensType, "lensType")
         req(e.usage, "usage")
-        if e.followUpDate == nil { errs.append(.init(fieldKey: "followUpDate", message: "Campo obligatorio.")) }
+        if e.followUpDate == nil {
+            errs.append(.init(fieldKey: "followUpDate", message: "Campo obligatorio."))
+        }
 
         req(e.ishihara, "ishihara")
         req(e.campimetry, "campimetry")
@@ -99,6 +102,7 @@ enum EncounterValidator {
 
     static func validateStep4(_ e: Encounter) -> [FormValidationError] {
         var errs: [FormValidationError] = []
+
         func req(_ v: String, _ key: String) {
             if v.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 errs.append(.init(fieldKey: key, message: "Campo obligatorio."))
@@ -109,6 +113,7 @@ enum EncounterValidator {
         req(e.payTotal, "payTotal")
         req(e.payMethod, "payMethod")
         req(e.payReference, "payReference")
+
         return errs
     }
 }

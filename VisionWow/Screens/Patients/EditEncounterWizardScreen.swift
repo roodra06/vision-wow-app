@@ -24,17 +24,23 @@ struct EditEncounterWizardScreen: View {
             BrandColors.backgroundGradient.ignoresSafeArea()
 
             EncounterWizardView(
-                encounter: .constant(encounter),
+                encounter: encounter,
                 company: company,
                 onCancel: { dismiss() },
                 onFinish: { _ in
                     save()
                 },
-                startAt: isExternalOptica ? .personalData : .clinicalHistory   // ✅ al final
+                startAt: isExternalOptica ? .personalData : .clinicalHistory
             )
             .padding(16)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // Si por alguna razón el encounter no tiene paciente, evita nil en el wizard
+            if encounter.patient == nil {
+                encounter.patient = Patient()
+            }
+        }
     }
 
     private func save() {

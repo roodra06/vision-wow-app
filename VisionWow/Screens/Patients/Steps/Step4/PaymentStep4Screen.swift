@@ -25,14 +25,14 @@ struct PaymentStep4Screen: View {
     }
 
     private var fullNameText: String {
-        let first = encounter.firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let last  = encounter.lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let first = (encounter.patient?.firstName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let last  = (encounter.patient?.lastName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let combined = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
         return combined.isEmpty ? "Sin nombre" : combined
     }
 
     private var profileUIImage: UIImage? {
-        guard let data = encounter.profileImageData else { return nil }
+        guard let data = encounter.patient?.profileImageData else { return nil }
         return UIImage(data: data)
     }
 
@@ -328,8 +328,6 @@ struct PaymentStep4Screen: View {
         }
     }
 
-    // Picker menú SIN texto azul encimado (mismo patrón que Sexo/Turno corregido)
-    // Picker menú SIN texto azul encimado y con tap en TODO el input
     private func menuPickerInput(
         icon: String,
         selection: Binding<String>,
@@ -342,7 +340,6 @@ struct PaymentStep4Screen: View {
                 Button {
                     selection.wrappedValue = opt
                 } label: {
-                    // checkmark al seleccionado
                     if selection.wrappedValue == opt {
                         Label(opt, systemImage: "checkmark")
                     } else {
@@ -350,11 +347,6 @@ struct PaymentStep4Screen: View {
                     }
                 }
             }
-
-            // Opción para limpiar (si quieres permitirlo)
-            // Divider()
-            // Button(role: .destructive) { selection.wrappedValue = "" } label: { Text("Limpiar") }
-
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: icon)
@@ -372,7 +364,7 @@ struct PaymentStep4Screen: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: 44)          // ✅ ocupa todo el input
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(Color.black.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
@@ -383,13 +375,11 @@ struct PaymentStep4Screen: View {
                         lineWidth: 1
                     )
             )
-            .contentShape(Rectangle())                           // ✅ tap en toda el área
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, minHeight: 44)             // ✅ refuerza el layout en FieldRow
+        .frame(maxWidth: .infinity, minHeight: 44)
     }
-
-
 
     // MARK: - PDF
 
@@ -409,7 +399,6 @@ struct PaymentStep4Screen: View {
             print("ERROR writing PDF:", error)
         }
     }
-
 
     private func makePDFName() -> String {
         let id = String(describing: encounter.id).prefix(8)

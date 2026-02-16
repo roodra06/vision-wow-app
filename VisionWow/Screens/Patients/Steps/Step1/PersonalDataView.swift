@@ -17,7 +17,7 @@ struct PersonalDataView: View {
     private let totalSteps = 4
 
     private var ageText: String {
-        guard let dob = encounter.dob else { return "" }
+        guard let dob = encounter.patient?.dob else { return "" }
         return "\(DateUtils.age(from: dob))"
     }
 
@@ -27,8 +27,8 @@ struct PersonalDataView: View {
     }
 
     private var fullNameText: String {
-        let first = encounter.firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let last  = encounter.lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let first = (encounter.patient?.firstName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let last  = (encounter.patient?.lastName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let combined = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
         return combined.isEmpty ? "Sin nombre" : combined
     }
@@ -42,6 +42,12 @@ struct PersonalDataView: View {
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 28)
+        }
+        .onAppear {
+            // Evita nil para que los bindings funcionen
+            if encounter.patient == nil {
+                encounter.patient = Patient()
+            }
         }
     }
 
@@ -105,7 +111,6 @@ struct PersonalDataView: View {
                     Spacer()
                 }
 
-                // Usa tu ProgressPillBar existente (ya declarado en tu proyecto)
                 ProgressPillBar(
                     progress: CGFloat(stepIndex) / CGFloat(totalSteps),
                     height: 10
@@ -150,8 +155,80 @@ struct PersonalDataView: View {
     }
 
     private var profileUIImage: UIImage? {
-        guard let data = encounter.profileImageData else { return nil }
+        guard let data = encounter.patient?.profileImageData else { return nil }
         return UIImage(data: data)
+    }
+
+    // MARK: - Bindings (Patient)
+
+    private var firstNameBinding: Binding<String> {
+        Binding(
+            get: { encounter.patient?.firstName ?? "" },
+            set: { newValue in
+                if encounter.patient == nil { encounter.patient = Patient() }
+                encounter.patient?.firstName = newValue
+            }
+        )
+    }
+
+    private var lastNameBinding: Binding<String> {
+        Binding(
+            get: { encounter.patient?.lastName ?? "" },
+            set: { newValue in
+                if encounter.patient == nil { encounter.patient = Patient() }
+                encounter.patient?.lastName = newValue
+            }
+        )
+    }
+
+    private var dobBinding: Binding<Date> {
+        Binding(
+            get: { encounter.patient?.dob ?? Date() },
+            set: { newValue in
+                if encounter.patient == nil { encounter.patient = Patient() }
+                encounter.patient?.dob = newValue
+            }
+        )
+    }
+
+    private var sexBinding: Binding<String> {
+        Binding(
+            get: { encounter.patient?.sex ?? SexOption.noEspecificado.rawValue },
+            set: { newValue in
+                if encounter.patient == nil { encounter.patient = Patient() }
+                encounter.patient?.sex = newValue
+            }
+        )
+    }
+
+    private var homePhoneBinding: Binding<String> {
+        Binding(
+            get: { encounter.patient?.homePhone ?? "" },
+            set: { newValue in
+                if encounter.patient == nil { encounter.patient = Patient() }
+                encounter.patient?.homePhone = newValue.isEmpty ? nil : newValue
+            }
+        )
+    }
+
+    private var cellPhoneBinding: Binding<String> {
+        Binding(
+            get: { encounter.patient?.cellPhone ?? "" },
+            set: { newValue in
+                if encounter.patient == nil { encounter.patient = Patient() }
+                encounter.patient?.cellPhone = newValue
+            }
+        )
+    }
+
+    private var personalEmailBinding: Binding<String> {
+        Binding(
+            get: { encounter.patient?.personalEmail ?? "" },
+            set: { newValue in
+                if encounter.patient == nil { encounter.patient = Patient() }
+                encounter.patient?.personalEmail = newValue
+            }
+        )
     }
 
     // MARK: - Form
@@ -165,7 +242,7 @@ struct PersonalDataView: View {
                     iconTextField(
                         systemName: "person.fill",
                         placeholder: "",
-                        text: $encounter.firstName,
+                        text: firstNameBinding,
                         isError: errors["firstName"] != nil
                     )
                 }
@@ -174,7 +251,7 @@ struct PersonalDataView: View {
                     iconTextField(
                         systemName: "person.2.fill",
                         placeholder: "",
-                        text: $encounter.lastName,
+                        text: lastNameBinding,
                         isError: errors["lastName"] != nil
                     )
                 }
@@ -185,10 +262,7 @@ struct PersonalDataView: View {
             HStack(spacing: 12) {
                 FieldRow("Fecha de nacimiento", required: true, error: errors["dob"]) {
                     dateField(
-                        selection: Binding(
-                            get: { encounter.dob ?? Date() },
-                            set: { encounter.dob = $0 }
-                        ),
+                        selection: dobBinding,
                         isError: errors["dob"] != nil
                     )
                 }
@@ -218,7 +292,7 @@ struct PersonalDataView: View {
                 FieldRow("Sexo", required: true, error: errors["sex"]) {
                     menuPickerField(
                         icon: "figure.dress.line.vertical.figure",
-                        selection: $encounter.sex,
+                        selection: sexBinding,
                         placeholder: "Selecciona…",
                         isError: errors["sex"] != nil
                     ) {
@@ -238,10 +312,7 @@ struct PersonalDataView: View {
                     iconTextField(
                         systemName: "phone.fill",
                         placeholder: "",
-                        text: Binding(
-                            get: { encounter.homePhone ?? "" },
-                            set: { encounter.homePhone = $0.isEmpty ? nil : $0 }
-                        ),
+                        text: homePhoneBinding,
                         isError: false
                     )
                     .keyboardType(.phonePad)
@@ -251,7 +322,7 @@ struct PersonalDataView: View {
                     iconTextField(
                         systemName: "iphone",
                         placeholder: "",
-                        text: $encounter.cellPhone,
+                        text: cellPhoneBinding,
                         isError: errors["cellPhone"] != nil
                     )
                     .keyboardType(.phonePad)
@@ -262,7 +333,7 @@ struct PersonalDataView: View {
                 iconTextField(
                     systemName: "envelope.fill",
                     placeholder: "correo@personal.com",
-                    text: $encounter.personalEmail,
+                    text: personalEmailBinding,
                     isError: errors["personalEmail"] != nil
                 )
                 .keyboardType(.emailAddress)
@@ -343,7 +414,6 @@ struct PersonalDataView: View {
         )
     }
 
-    // Picker menu con look de input (como Turno)
     private func menuPickerField<Content: View>(
         icon: String,
         selection: Binding<String>,
@@ -353,17 +423,15 @@ struct PersonalDataView: View {
     ) -> some View {
 
         ZStack {
-            // 1) Picker real pero invisible (para evitar texto azul)
             Picker("", selection: selection) {
                 Text(placeholder).tag("")
                 content()
             }
             .pickerStyle(.menu)
             .labelsHidden()
-            .opacity(0.02)                // ✅ “desaparece” el texto azul
+            .opacity(0.02)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // 2) UI del input (lo que sí se ve)
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .semibold))
@@ -387,9 +455,8 @@ struct PersonalDataView: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isError ? BrandColors.danger.opacity(0.90) : BrandColors.accent.opacity(0.12), lineWidth: 1)
             )
-            .allowsHitTesting(false) // ✅ el tap va al Picker invisible
+            .allowsHitTesting(false)
         }
         .contentShape(Rectangle())
     }
 }
-

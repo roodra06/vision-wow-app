@@ -4,6 +4,7 @@
 //
 //  Created by Rodrigo Marcos on 27/12/25.
 //
+
 import SwiftUI
 import SwiftData
 
@@ -29,8 +30,6 @@ struct PatientsList: View {
                 VStack(spacing: 12) {
                     ForEach(company.encounters.sorted(by: { $0.createdAt > $1.createdAt })) { e in
                         NavigationLink {
-                            // Aquí debes navegar a tu flujo real.
-                            // Sustituye por tu FlowCoordinator real:
                             FlowCoordinator(encounter: e)
                         } label: {
                             patientCard(e)
@@ -44,7 +43,7 @@ struct PatientsList: View {
     }
 
     private func patientCard(_ e: Encounter) -> some View {
-        let name = "\(e.firstName) \(e.lastName)".trimmingCharacters(in: .whitespaces)
+        let name = e.patientFullName.trimmingCharacters(in: .whitespacesAndNewlines)
         let status = (e.completedAt == nil) ? "En progreso" : "Finalizado"
 
         return VStack(alignment: .leading, spacing: 8) {
@@ -73,4 +72,3 @@ struct PatientsList: View {
         )
     }
 }
-

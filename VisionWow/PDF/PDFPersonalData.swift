@@ -11,25 +11,30 @@ enum PDFPersonalData {
     static func drawPersonalDataGrid(encounter: Encounter, x: CGFloat, y: CGFloat, w: CGFloat) -> CGFloat {
         var yy = y
 
+        // Fuente de datos personales
+        let p = encounter.patient
+
         yy = PDFRows.drawLineRow2(
-            left: ("Nombre(s)", encounter.firstName),
-            right: ("Apellidos", encounter.lastName),
+            left: ("Nombre(s)", p?.firstName ?? ""),
+            right: ("Apellidos", p?.lastName ?? ""),
             x: x, y: yy, w: w
         ) + 8
 
-        let dobText = encounter.dob.map { PDFDate.formatDMY($0) } ?? ""
-        let ageText = encounter.dob.map { String(PDFDate.age(from: $0)) } ?? ""
+        // Si tu Patient usa otro nombre para la fecha (ej. birthDate), cámbialo aquí:
+        let dob = p?.dob
+        let dobText = dob.map { PDFDate.formatDMY($0) } ?? ""
+        let ageText = dob.map { String(PDFDate.age(from: $0)) } ?? ""
 
         yy = PDFRows.drawLineRow4(
             a: ("Fecha Nac", dobText),
             b: ("Edad", ageText),
-            c: ("Sexo", encounter.sex),
-            d: ("Tel. Casa", encounter.homePhone ?? ""),
+            c: ("Sexo", p?.sex ?? ""),
+            d: ("Tel. Casa", p?.homePhone ?? ""),
             x: x, y: yy, w: w
         ) + 8
 
         yy = PDFRows.drawLineRow2(
-            left: ("Tel. Cel", encounter.cellPhone),
+            left: ("Tel. Cel", p?.cellPhone ?? ""),
             right: ("", ""),
             x: x, y: yy, w: w
         ) + 2
@@ -37,4 +42,3 @@ enum PDFPersonalData {
         return yy
     }
 }
-

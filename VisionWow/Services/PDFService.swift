@@ -16,12 +16,19 @@ enum PDFService {
 
     static func generate(encounter: Encounter) throws -> Output {
         guard let logo = UIImage(named: "visionwow_logo") else {
-            throw NSError(domain: "PDFService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No se encontró el logo en Assets.xcassets (visionwow_logo)."])
+            throw NSError(
+                domain: "PDFService",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No se encontró el logo en Assets.xcassets (visionwow_logo)."]
+            )
         }
 
         let data = PDFRenderer.render(encounter: encounter, logo: logo)
 
-        let fileName = "VisionWow_\(safe(encounter.firstName))_\(safe(encounter.lastName))_\(DateUtils.formatStamp()).pdf"
+        let firstName = safe(encounter.patient?.firstName ?? "")
+        let lastName  = safe(encounter.patient?.lastName ?? "")
+
+        let fileName = "VisionWow_\(firstName)_\(lastName)_\(DateUtils.formatStamp()).pdf"
         let url = try saveToDocuments(data: data, fileName: fileName)
 
         return Output(url: url, data: data, fileName: fileName)
@@ -44,3 +51,4 @@ enum PDFService {
         return url
     }
 }
+

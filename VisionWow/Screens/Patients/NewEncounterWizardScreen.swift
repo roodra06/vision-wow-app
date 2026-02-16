@@ -24,20 +24,26 @@ struct NewEncounterWizardScreen: View {
             BrandColors.backgroundGradient.ignoresSafeArea()
 
             EncounterWizardView(
-                encounter: $draftEncounter,
+                encounter: draftEncounter,
                 company: company,
                 onCancel: { dismiss() },
                 onFinish: { finalizedEncounter in
                     save(finalizedEncounter)
                 },
-                startAt: isExternalOptica ? .personalData : .clinicalHistory   // ✅ AL FINAL
+                startAt: isExternalOptica ? .personalData : .clinicalHistory
             )
             .padding(16)
         }
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            // Empresa
             draftEncounter.company = company
             draftEncounter.companyName = company.name
+
+            // Paciente (evita nil en el wizard; puedes reemplazar esto por tu selector real de paciente)
+            if draftEncounter.patient == nil {
+                draftEncounter.patient = Patient()
+            }
         }
     }
 

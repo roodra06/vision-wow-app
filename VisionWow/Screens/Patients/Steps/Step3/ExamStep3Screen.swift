@@ -22,14 +22,14 @@ struct ExamStep3Screen: View {
     }
 
     private var fullNameText: String {
-        let first = encounter.firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let last  = encounter.lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let first = (encounter.patient?.firstName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let last  = (encounter.patient?.lastName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let combined = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
         return combined.isEmpty ? "Sin nombre" : combined
     }
 
     private var profileUIImage: UIImage? {
-        guard let data = encounter.profileImageData else { return nil }
+        guard let data = encounter.patient?.profileImageData else { return nil }
         return UIImage(data: data)
     }
 

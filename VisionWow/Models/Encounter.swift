@@ -1,9 +1,12 @@
-    //
-    //  Encounter.swift
-    //  VisionWow
-    //
-    //  Created by Rodrigo Marcos on 27/12/25.
-    //
+//
+//  Encounter.swift
+//  VisionWow
+//
+//  Created by Rodrigo Marcos on 27/12/25.
+//
+
+import Foundation
+import SwiftData
 
 @Model
 final class Encounter {
@@ -13,6 +16,7 @@ final class Encounter {
     var completedAt: Date?
 
     // ✅ Relación al paciente
+    @Relationship(inverse: \Patient.encounters)
     var patient: Patient?
 
     // ✅ Empresa (si es empresa o “Óptica”)
@@ -28,6 +32,11 @@ final class Encounter {
     var officePhone: String?
     var extensionNumber: String?
     var companyEmail: String
+
+    // ✅ Antigüedad (empleado)
+    var seniorityYears: Int?
+    var seniorityMonths: Int?
+    var seniorityWeeks: Int?
 
     // Antecedentes (si lo quieres por visita)
     var antecedentesJSON: String
@@ -64,6 +73,15 @@ final class Encounter {
     var payDiscount: String?
     var payNotes: String?
 
+    // Helpers (conveniencia para UI/PDF)
+    var patientFirstName: String { patient?.firstName ?? "" }
+    var patientLastName: String { patient?.lastName ?? "" }
+    var patientFullName: String {
+        let fn = patientFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ln = patientLastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [fn, ln].filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
     init() {
         self.id = UUID()
         self.createdAt = Date()
@@ -85,16 +103,30 @@ final class Encounter {
         self.extensionNumber = nil
         self.companyEmail = ""
 
+        self.seniorityYears = nil
+        self.seniorityMonths = nil
+        self.seniorityWeeks = nil
+
         let defaults = Antecedents.defaults()
-        self.antecedentesJSON = (try? JSONEncoder().encode(defaults)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        self.antecedentesJSON = (try? JSONEncoder().encode(defaults))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
 
         self.ishihara = ""
         self.campimetry = ""
 
-        self.vaOdSc = ""; self.vaOsSc = ""; self.vaOdCc = ""; self.vaOsCc = ""
+        self.vaOdSc = ""
+        self.vaOsSc = ""
+        self.vaOdCc = ""
+        self.vaOsCc = ""
 
-        self.rxOdSph = ""; self.rxOdCyl = ""; self.rxOdAxis = ""; self.rxOdAdd = ""
-        self.rxOsSph = ""; self.rxOsCyl = ""; self.rxOsAxis = ""; self.rxOsAdd = ""
+        self.rxOdSph = ""
+        self.rxOdCyl = ""
+        self.rxOdAxis = ""
+        self.rxOdAdd = ""
+        self.rxOsSph = ""
+        self.rxOsCyl = ""
+        self.rxOsAxis = ""
+        self.rxOsAdd = ""
         self.dp = ""
 
         self.lensType = ""

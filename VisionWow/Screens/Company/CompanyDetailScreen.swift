@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import Foundation
 
 struct CompanyDetailScreen: View {
     @Environment(\.modelContext) private var modelContext
@@ -295,7 +296,9 @@ struct CompanyDetailScreen: View {
 
                     Spacer(minLength: 0)
 
-                    let phone = encounter.cellPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let phone = (encounter.patient?.cellPhone ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+
                     if !phone.isEmpty {
                         Label(phone, systemImage: "phone.fill")
                             .font(.caption)
@@ -347,8 +350,8 @@ struct CompanyDetailScreen: View {
     // MARK: - Helpers (nombre/pago)
 
     private func patientDisplayName(_ e: Encounter) -> String {
-        let first = e.firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let last  = e.lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let first = (e.patient?.firstName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let last  = (e.patient?.lastName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let full = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
         return full.isEmpty ? "Paciente" : full
     }

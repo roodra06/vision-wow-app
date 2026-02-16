@@ -4,6 +4,7 @@
 //
 //  Created by Rodrigo Marcos on 28/12/25.
 //
+
 import UIKit
 import Foundation
 
@@ -25,18 +26,35 @@ enum PDFClinicalHistory {
         let antigRect = CGRect(x: x, y: r1y, width: smallW * 3 + gap * 2, height: rowH)
         PDFFields.drawInlineLabel("Antigüedad", in: antigRect, labelW: 72)
 
-        PDFFields.drawSmallLineField(label: "Años", value: encounter.seniorityYears.map(String.init) ?? "",
-                           x: x + 80, y: r1y, w: smallW - 10, h: rowH)
-        PDFFields.drawSmallLineField(label: "Meses", value: encounter.seniorityMonths.map(String.init) ?? "",
-                           x: x + 80 + (smallW + gap), y: r1y, w: smallW - 10, h: rowH)
-        PDFFields.drawSmallLineField(label: "Semanas", value: encounter.seniorityWeeks.map(String.init) ?? "",
-                           x: x + 80 + (smallW + gap) * 2, y: r1y, w: smallW - 10, h: rowH)
+        PDFFields.drawSmallLineField(
+            label: "Años",
+            value: encounter.seniorityYears.map(String.init) ?? "",
+            x: x + 80, y: r1y, w: smallW - 10, h: rowH
+        )
+        PDFFields.drawSmallLineField(
+            label: "Meses",
+            value: encounter.seniorityMonths.map(String.init) ?? "",
+            x: x + 80 + (smallW + gap), y: r1y, w: smallW - 10, h: rowH
+        )
+        PDFFields.drawSmallLineField(
+            label: "Semanas",
+            value: encounter.seniorityWeeks.map(String.init) ?? "",
+            x: x + 80 + (smallW + gap) * 2, y: r1y, w: smallW - 10, h: rowH
+        )
 
-        // Checks (Eventual aquí está “dummy” como tu código)
-        PDFFields.drawCheckBox(label: "Planta", checked: encounter.isPlanta, x: x + w - (checkEach * 2) - gap, y: r1y + 2, w: checkEach, h: rowH)
-
+        // Checks (por ahora dummy: Encounter no tiene isPlanta/isEventual)
+        let plantaChecked = false
         let eventualChecked = false
-        PDFFields.drawCheckBox(label: "Eventual", checked: eventualChecked, x: x + w - checkEach, y: r1y + 2, w: checkEach, h: rowH)
+        PDFFields.drawCheckBox(
+            label: "Planta",
+            checked: plantaChecked,
+            x: x + w - (checkEach * 2) - gap, y: r1y + 2, w: checkEach, h: rowH
+        )
+        PDFFields.drawCheckBox(
+            label: "Eventual",
+            checked: eventualChecked,
+            x: x + w - checkEach, y: r1y + 2, w: checkEach, h: rowH
+        )
 
         yy += rowH + 8
 
@@ -62,9 +80,10 @@ enum PDFClinicalHistory {
             x: x, y: yy, w: w
         ) + 8
 
+        let personalEmail = encounter.patient?.personalEmail ?? ""
         yy = PDFRows.drawLineRow2(
             left: ("Correo Empresa", encounter.companyEmail),
-            right: ("Correo Personal", encounter.personalEmail),
+            right: ("Correo Personal", personalEmail),
             x: x, y: yy, w: w
         ) + 8
 
@@ -115,4 +134,3 @@ enum PDFClinicalHistory {
         return "de \(left) a \(right)"
     }
 }
-
