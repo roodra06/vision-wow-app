@@ -16,7 +16,7 @@ final class Company {
     var createdAt: Date
     var updatedAt: Date
 
-    @Relationship(deleteRule: .cascade, inverse: \Encounter.company)
+    @Relationship(deleteRule: .cascade)
     var encounters: [Encounter] = []
 
     init(name: String, serviceType: String, expectedPatients: Int? = nil) {

@@ -132,7 +132,7 @@ struct CompanyDetailScreen: View {
     // MARK: - Hero Header
 
     private func heroHeader(company: Company, height: CGFloat) -> some View {
-        ZStack {
+        return ZStack {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(BrandColors.cardGradient)
                 .overlay(
@@ -203,6 +203,33 @@ struct CompanyDetailScreen: View {
                 .buttonStyle(.plain)
                 .frame(maxWidth: 360)
                 .padding(.top, 2)
+
+                // ✅ CTA: Generar reporte
+                NavigationLink {
+                    CompanyReportBuilderScreen(companyId: company.id)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Generar reporte")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundStyle(BrandColors.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.white.opacity(0.88))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(BrandColors.primary.opacity(0.20), lineWidth: 1)
+                            )
+                    )
+                    .shadow(color: BrandColors.secondary.opacity(0.08), radius: 10, x: 0, y: 6)
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: 360)
 
                 Spacer(minLength: 0)
             }

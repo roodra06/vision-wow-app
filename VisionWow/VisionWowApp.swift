@@ -12,22 +12,46 @@ import SwiftData
 struct VisionWowApp: App {
 
     private let container: ModelContainer = {
-        let schema = Schema([Company.self, Encounter.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+
+        // ✅ Incluye TODOS los @Model aquí
+        let schema = Schema([
+            Company.self,
+            Patient.self,
+            Encounter.self
+        ])
+
+        let configuration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false
+        )
 
         do {
-            return try ModelContainer(for: schema, configurations: [config])
+            return try ModelContainer(
+                for: schema,
+                configurations: [configuration]
+            )
         } catch {
-            // Si falla por cambios de modelo (muy común en desarrollo),
-            // borramos el store local y lo recreamos.
-            print("SwiftData: error cargando store, intentando recuperación:", error)
+            print("SwiftData: error cargando store:", error)
 
+            #if DEBUG
+            // ✅ Solo en desarrollo: borrar store y recrear
             do {
                 try VisionWowApp.deleteSwiftDataStoreFiles()
-                return try ModelContainer(for: schema, configurations: [config])
+                return try ModelContainer(
+                    for: schema,
+                    configurations: [configuration]
+                )
             } catch {
-                fatalError("No se pudo crear ModelContainer ni con recuperación: \(error)")
+                fatalError("No se pudo recrear ModelContainer en DEBUG: \(error)")
             }
+            #else
+            // ❌ En producción jamás borres expedientes automáticamente
+            fatalError("""
+            Error crítico cargando base de datos.
+            Se requiere migración o revisión del modelo.
+            Error: \(error)
+            """)
+            #endif
         }
     }()
 
@@ -35,11 +59,12 @@ struct VisionWowApp: App {
         WindowGroup {
             RootView()
                 .preferredColorScheme(.light)
-                .modelContainer(container) // INYECCIÓN GLOBAL
+                .modelContainer(container)
         }
     }
 
-    /// Borra el store local de SwiftData (solo para desarrollo)
+    // MARK: - DEBUG ONLY STORE RESET
+
     private static func deleteSwiftDataStoreFiles() throws {
         let fm = FileManager.default
         let appSupport = try fm.url(
@@ -62,6 +87,7 @@ struct VisionWowApp: App {
                 || name.contains("store")
             {
                 try? fm.removeItem(at: url)
+                print("SwiftData: store eliminado en DEBUG ->", name)
             }
         }
     }

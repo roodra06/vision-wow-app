@@ -20,6 +20,7 @@ final class Encounter {
     var patient: Patient?
 
     // ✅ Empresa (si es empresa o “Óptica”)
+    @Relationship(inverse: \Company.encounters)
     var company: Company?
     var companyName: String
     var branch: String
