@@ -87,7 +87,7 @@ enum EncounterValidator {
         req(e.rxOsAxis, "rxOsAxis")
         req(e.rxOsAdd, "rxOsAdd")
 
-        req(e.dp, "dp")
+        req(e.dip, "dip")
         req(e.lensType, "lensType")
         req(e.usage, "usage")
         if e.followUpDate == nil {

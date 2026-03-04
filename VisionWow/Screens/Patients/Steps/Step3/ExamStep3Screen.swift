@@ -1,10 +1,3 @@
-//
-//  ExamStep3Screen.swift
-//  VisionWow
-//
-//  Created by Rodrigo Marcos on 27/12/25.
-//
-
 import SwiftUI
 import UIKit
 
@@ -153,28 +146,73 @@ struct ExamStep3Screen: View {
     private var examCard: some View {
         VStack(spacing: 16) {
 
-            sectionHeader(icon: "eye.fill", title: "Agudeza visual")
+            // =========================================================
+            // 1) AGUDEZA VISUAL (LEJANA)
+            // =========================================================
+            sectionHeader(icon: "eye.fill", title: "Agudeza visual (lejana)")
 
             HStack(spacing: 12) {
                 FieldRow("OD S/C", required: true, error: errors["vaOdSc"]) {
                     iconTextField(systemName: "eye", text: $encounter.vaOdSc, isError: errors["vaOdSc"] != nil)
                 }
-                FieldRow("OS S/C", required: true, error: errors["vaOsSc"]) {
+                FieldRow("OI S/C", required: true, error: errors["vaOsSc"]) {
                     iconTextField(systemName: "eye", text: $encounter.vaOsSc, isError: errors["vaOsSc"] != nil)
                 }
+                FieldRow("AO S/C", required: true, error: errors["vaOuSc"]) {
+                    iconTextField(systemName: "eye", text: $encounter.vaOuSc, isError: errors["vaOuSc"] != nil)
+                }
+            }
+
+            HStack(spacing: 12) {
                 FieldRow("OD C/C", required: true, error: errors["vaOdCc"]) {
                     iconTextField(systemName: "eyeglasses", text: $encounter.vaOdCc, isError: errors["vaOdCc"] != nil)
                 }
-                FieldRow("OS C/C", required: true, error: errors["vaOsCc"]) {
+                FieldRow("OI C/C", required: true, error: errors["vaOsCc"]) {
                     iconTextField(systemName: "eyeglasses", text: $encounter.vaOsCc, isError: errors["vaOsCc"] != nil)
+                }
+                FieldRow("AO C/C", required: true, error: errors["vaOuCc"]) {
+                    iconTextField(systemName: "eyeglasses", text: $encounter.vaOuCc, isError: errors["vaOuCc"] != nil)
                 }
             }
 
             Divider().opacity(0.35)
 
+            // =========================================================
+            // 1) AGUDEZA VISUAL CERCANA
+            // =========================================================
+            sectionHeader(icon: "text.magnifyingglass", title: "Agudeza visual (cercana)")
+
+            HStack(spacing: 12) {
+                FieldRow("OD S/C", required: true, error: errors["nearVaOdSc"]) {
+                    iconTextField(systemName: "eye", text: $encounter.nearVaOdSc, isError: errors["nearVaOdSc"] != nil)
+                }
+                FieldRow("OI S/C", required: true, error: errors["nearVaOsSc"]) {
+                    iconTextField(systemName: "eye", text: $encounter.nearVaOsSc, isError: errors["nearVaOsSc"] != nil)
+                }
+                FieldRow("AO S/C", required: true, error: errors["nearVaOuSc"]) {
+                    iconTextField(systemName: "eye", text: $encounter.nearVaOuSc, isError: errors["nearVaOuSc"] != nil)
+                }
+            }
+
+            HStack(spacing: 12) {
+                FieldRow("OD C/C", required: true, error: errors["nearVaOdCc"]) {
+                    iconTextField(systemName: "eyeglasses", text: $encounter.nearVaOdCc, isError: errors["nearVaOdCc"] != nil)
+                }
+                FieldRow("OI C/C", required: true, error: errors["nearVaOsCc"]) {
+                    iconTextField(systemName: "eyeglasses", text: $encounter.nearVaOsCc, isError: errors["nearVaOsCc"] != nil)
+                }
+                FieldRow("AO C/C", required: true, error: errors["nearVaOuCc"]) {
+                    iconTextField(systemName: "eyeglasses", text: $encounter.nearVaOuCc, isError: errors["nearVaOuCc"] != nil)
+                }
+            }
+
+            Divider().opacity(0.35)
+
+            // =========================================================
+            // 2) REFRACCIÓN
+            // =========================================================
             sectionHeader(icon: "scope", title: "Refracción")
 
-            // OD
             subsectionLabel("OD", icon: "r.circle.fill")
 
             HStack(spacing: 12) {
@@ -187,13 +225,13 @@ struct ExamStep3Screen: View {
                 FieldRow("AXIS", required: true, error: errors["rxOdAxis"]) {
                     iconTextField(systemName: "dial.high.fill", text: $encounter.rxOdAxis, isError: errors["rxOdAxis"] != nil)
                 }
-                FieldRow("ADD", required: true, error: errors["rxOdAdd"]) {
+                // ✅ 3) ADD NO obligatorio
+                FieldRow("ADD", required: false, error: errors["rxOdAdd"]) {
                     iconTextField(systemName: "plus.circle.fill", text: $encounter.rxOdAdd, isError: errors["rxOdAdd"] != nil)
                 }
             }
 
-            // OS
-            subsectionLabel("OS", icon: "l.circle.fill")
+            subsectionLabel("OI", icon: "l.circle.fill")
 
             HStack(spacing: 12) {
                 FieldRow("SPH", required: true, error: errors["rxOsSph"]) {
@@ -205,14 +243,16 @@ struct ExamStep3Screen: View {
                 FieldRow("AXIS", required: true, error: errors["rxOsAxis"]) {
                     iconTextField(systemName: "dial.high.fill", text: $encounter.rxOsAxis, isError: errors["rxOsAxis"] != nil)
                 }
-                FieldRow("ADD", required: true, error: errors["rxOsAdd"]) {
+                // ✅ 3) ADD NO obligatorio
+                FieldRow("ADD", required: false, error: errors["rxOsAdd"]) {
                     iconTextField(systemName: "plus.circle.fill", text: $encounter.rxOsAdd, isError: errors["rxOsAdd"] != nil)
                 }
             }
 
             HStack(spacing: 12) {
-                FieldRow("DP", required: true, error: errors["dp"]) {
-                    iconTextField(systemName: "ruler.fill", text: $encounter.dp, isError: errors["dp"] != nil)
+                // ✅ 2) DIP (no DP) + corregimos key para que coincida con validate: "dip"
+                FieldRow("DIP", required: true, error: errors["dip"]) {
+                    iconTextField(systemName: "ruler.fill", text: $encounter.dip, isError: errors["dip"] != nil)
                 }
                 Spacer()
             }

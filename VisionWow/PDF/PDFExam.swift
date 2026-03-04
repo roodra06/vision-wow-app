@@ -46,7 +46,7 @@ enum PDFExam {
         ) + 10
 
         yy = PDFRows.drawLineRow3(
-            left: ("DP", encounter.dp),
+            left: ("DP", encounter.dip),
             mid: ("Tipo de lente", encounter.lensType),
             right: ("Uso", encounter.usage),
             x: x, y: yy, w: w

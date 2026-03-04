@@ -162,6 +162,11 @@ struct ClinicalHistoryView: View {
         return combined.isEmpty ? "Sin nombre" : combined
     }
 
+    private var patientIdText: String {
+        let raw = String(describing: encounter.id)
+        return "ID: \(raw.prefix(8))"
+    }
+
     private var profileAvatar: some View {
         ZStack(alignment: .bottomTrailing) {
             ZStack {
@@ -211,11 +216,6 @@ struct ClinicalHistoryView: View {
             .offset(x: 2, y: 2)
             .accessibilityLabel(Text("Tomar foto de perfil"))
         }
-    }
-
-    private var patientIdText: String {
-        let raw = String(describing: encounter.id)
-        return "ID: \(raw.prefix(8))"
     }
 
     // MARK: - Form Card
@@ -336,7 +336,7 @@ struct ClinicalHistoryView: View {
                 }
 
                 FieldRow("Turno", required: true, error: errors["shift"]) {
-                    shiftPickerField(
+                    ShiftPickerField(
                         selection: $encounter.shift,
                         placeholder: "Selecciona…",
                         isError: errors["shift"] != nil
@@ -349,14 +349,14 @@ struct ClinicalHistoryView: View {
             HStack(spacing: 12) {
                 FieldRow("Entrada (opcional)") {
                     TimePickerField(
-                        placeholder: "HH:mm",
+                        placeholder: "Selecciona hora",
                         value: Binding(get: { encounter.entryTime }, set: { encounter.entryTime = $0 })
                     )
                 }
 
                 FieldRow("Salida (opcional)") {
                     TimePickerField(
-                        placeholder: "HH:mm",
+                        placeholder: "Selecciona hora",
                         value: Binding(get: { encounter.exitTime }, set: { encounter.exitTime = $0 })
                     )
                 }
@@ -553,33 +553,27 @@ struct ClinicalHistoryView: View {
                 .visionTextField(isError: isError)
         }
     }
+}
 
-    // ✅ Turno: Picker(menu) SIN texto azul encimado (Picker invisible + UI propia)
-    private func shiftPickerField(
-        selection: Binding<String>,
-        placeholder: String,
-        isError: Bool
-    ) -> some View {
+// MARK: - ShiftPickerField (sin "Selecciona…" como opción)
+struct ShiftPickerField: View {
+    @Binding var selection: String
+    let placeholder: String
+    let isError: Bool
 
-        ZStack {
-            Picker("", selection: selection) {
-                Text(placeholder).tag("")
-                ForEach(ShiftOption.allCases) { opt in
-                    Text(opt.rawValue).tag(opt.rawValue)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .opacity(0.02)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    @State private var showDialog = false
 
+    var body: some View {
+        Button {
+            showDialog = true
+        } label: {
             HStack(spacing: 10) {
                 Image(systemName: "clock.arrow.2.circlepath")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
 
-                Text(selection.wrappedValue.isEmpty ? placeholder : selection.wrappedValue)
-                    .foregroundStyle(selection.wrappedValue.isEmpty ? .secondary : .primary)
+                Text(selection.isEmpty ? placeholder : selection)
+                    .foregroundStyle(selection.isEmpty ? .secondary : .primary)
                     .lineLimit(1)
 
                 Spacer()
@@ -590,102 +584,167 @@ struct ClinicalHistoryView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(Color.black.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isError ? BrandColors.danger.opacity(0.90) : BrandColors.accent.opacity(0.12), lineWidth: 1)
             )
-            .allowsHitTesting(false)
         }
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+        .confirmationDialog("Selecciona turno", isPresented: $showDialog, titleVisibility: .visible) {
+            // ✅ Ya NO mostramos "Selecciona…"
+            ForEach(ShiftOption.allCases) { opt in
+                Button(opt.rawValue) { selection = opt.rawValue }
+            }
+
+            // Opcional: permitir limpiar
+            if !selection.isEmpty {
+                Button("Limpiar selección", role: .destructive) { selection = "" }
+            }
+
+            Button("Cancelar", role: .cancel) {}
+        }
     }
 }
 
-//
-
-//
-// MARK: - TimePickerField (HH:mm en String?)
-//
+// MARK: - TimePickerField (AM/PM aparte + wheels)
 struct TimePickerField: View {
     let placeholder: String
     @Binding var value: String?
 
-    @State private var date: Date = Date()
-    @State private var hasValue: Bool = false
+    @State private var showSheet = false
+
+    @State private var hour12: Int = 12
+    @State private var minute: Int = 0
+    @State private var ampm: String = "AM"
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "clock")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
+        Button {
+            hydrateEditorFromValue()
+            showSheet = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "clock")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
 
-            DatePicker(
-                "",
-                selection: Binding(
-                    get: { date },
-                    set: { newDate in
-                        date = newDate
-                        hasValue = true
-                        value = formatTime(newDate)
+                Text((value?.isEmpty == false) ? (value ?? "") : placeholder)
+                    .foregroundStyle((value?.isEmpty == false) ? .primary : .secondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                if let v = value, !v.isEmpty {
+                    Button {
+                        value = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary.opacity(0.7))
                     }
-                ),
-                displayedComponents: [.hourAndMinute]
-            )
-            .labelsHidden()
-            .datePickerStyle(.compact)
-
-            Spacer()
-
-            if hasValue || (value != nil && !(value ?? "").isEmpty) {
-                Button {
-                    hasValue = false
-                    value = nil
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary.opacity(0.7))
+                    .buttonStyle(.plain)
+                } else {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .opacity(0.7)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Color.black.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(BrandColors.accent.opacity(0.12), lineWidth: 1)
+            )
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.black.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(BrandColors.accent.opacity(0.12), lineWidth: 1)
-        )
-        .onAppear {
-            if let v = value, let parsed = parseTime(v) {
-                date = parsed
-                hasValue = true
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showSheet) {
+            NavigationStack {
+                VStack(spacing: 14) {
+
+                    Picker("", selection: $ampm) {
+                        Text("AM").tag("AM")
+                        Text("PM").tag("PM")
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                    HStack(spacing: 0) {
+                        Picker("Hora", selection: $hour12) {
+                            ForEach(1...12, id: \.self) { h in
+                                Text("\(h)").tag(h)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+
+                        Picker("Minuto", selection: $minute) {
+                            ForEach(0..<60, id: \.self) { m in
+                                Text(String(format: "%02d", m)).tag(m)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                    }
+                    .padding(.horizontal, 8)
+
+                    Text("Hora seleccionada: \(formattedString(hour12: hour12, minute: minute, ampm: ampm))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 6)
+
+                    Spacer(minLength: 0)
+                }
+                .navigationTitle("Hora")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancelar") { showSheet = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Listo") {
+                            value = formattedString(hour12: hour12, minute: minute, ampm: ampm)
+                            showSheet = false
+                        }
+                        .fontWeight(.semibold)
+                    }
+                }
             }
-        }
-        .onChange(of: value) { _, newValue in
-            if let v = newValue, let parsed = parseTime(v) {
-                date = parsed
-                hasValue = true
-            }
+            .presentationDetents([.medium])
         }
     }
 
-    private func formatTime(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "es_MX")
-        f.dateFormat = "HH:mm"
-        return f.string(from: date)
+    private func hydrateEditorFromValue() {
+        guard let v = value, !v.isEmpty else {
+            hour12 = 12
+            minute = 0
+            ampm = "AM"
+            return
+        }
+
+        let parts = v.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
+        if parts.count == 2 {
+            let timePart = parts[0]
+            let ampmPart = parts[1].uppercased()
+            let hm = timePart.components(separatedBy: ":")
+
+            if hm.count == 2, let h = Int(hm[0]), let m = Int(hm[1]) {
+                hour12 = min(max(h, 1), 12)
+                minute = min(max(m, 0), 59)
+            }
+            ampm = (ampmPart == "PM") ? "PM" : "AM"
+        }
     }
 
-    private func parseTime(_ string: String) -> Date? {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "es_MX")
-        f.dateFormat = "HH:mm"
-        guard let t = f.date(from: string) else { return nil }
-
-        let cal = Calendar.current
-        let comps = cal.dateComponents([.hour, .minute], from: t)
-        return cal.date(bySettingHour: comps.hour ?? 0, minute: comps.minute ?? 0, second: 0, of: Date())
+    private func formattedString(hour12: Int, minute: Int, ampm: String) -> String {
+        "\(hour12):" + String(format: "%02d", minute) + " \(ampm)"
     }
 }
 

@@ -16,10 +16,11 @@ struct PersonalDataView: View {
     private let stepIndex = 2
     private let totalSteps = 4
 
-    private var ageText: String {
-        guard let dob = encounter.patient?.dob else { return "" }
-        return "\(DateUtils.age(from: dob))"
-    }
+    // ✅ Edad calculada y forzada a refrescar
+    @State private var ageDisplay: String = ""
+
+    // ✅ Control de selección de sexo (para dialog)
+    @State private var showSexDialog = false
 
     private var patientIdText: String {
         let raw = String(describing: encounter.id)
@@ -45,9 +46,12 @@ struct PersonalDataView: View {
         }
         .onAppear {
             // Evita nil para que los bindings funcionen
-            if encounter.patient == nil {
-                encounter.patient = Patient()
-            }
+            if encounter.patient == nil { encounter.patient = Patient() }
+            recomputeAge()
+        }
+        // ✅ Si cambia DOB, recalcula SIEMPRE
+        .onChange(of: encounter.patient?.dob) { _, _ in
+            recomputeAge()
         }
     }
 
@@ -183,7 +187,7 @@ struct PersonalDataView: View {
 
     private var dobBinding: Binding<Date> {
         Binding(
-            get: { encounter.patient?.dob ?? Date() },
+            get: { encounter.patient?.dob ?? defaultDOB },
             set: { newValue in
                 if encounter.patient == nil { encounter.patient = Patient() }
                 encounter.patient?.dob = newValue
@@ -193,7 +197,7 @@ struct PersonalDataView: View {
 
     private var sexBinding: Binding<String> {
         Binding(
-            get: { encounter.patient?.sex ?? SexOption.noEspecificado.rawValue },
+            get: { encounter.patient?.sex ?? "" },
             set: { newValue in
                 if encounter.patient == nil { encounter.patient = Patient() }
                 encounter.patient?.sex = newValue
@@ -261,7 +265,7 @@ struct PersonalDataView: View {
 
             HStack(spacing: 12) {
                 FieldRow("Fecha de nacimiento", required: true, error: errors["dob"]) {
-                    dateField(
+                    SpanishDateField(
                         selection: dobBinding,
                         isError: errors["dob"] != nil
                     )
@@ -273,7 +277,7 @@ struct PersonalDataView: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.secondary)
 
-                        Text(ageText.isEmpty ? "—" : ageText)
+                        Text(ageDisplay.isEmpty ? "—" : ageDisplay)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.primary)
 
@@ -290,16 +294,12 @@ struct PersonalDataView: View {
                 }
 
                 FieldRow("Sexo", required: true, error: errors["sex"]) {
-                    menuPickerField(
-                        icon: "figure.dress.line.vertical.figure",
+                    SexPickerField(
                         selection: sexBinding,
                         placeholder: "Selecciona…",
-                        isError: errors["sex"] != nil
-                    ) {
-                        ForEach(SexOption.allCases) { opt in
-                            Text(opt.rawValue).tag(opt.rawValue)
-                        }
-                    }
+                        isError: errors["sex"] != nil,
+                        showDialog: $showSexDialog
+                    )
                 }
             }
 
@@ -353,6 +353,22 @@ struct PersonalDataView: View {
         )
     }
 
+    // MARK: - Age logic
+
+    private var defaultDOB: Date {
+        // Default: 18 años atrás para evitar Date() que confunde UI
+        Calendar.current.date(byAdding: .year, value: -18, to: Date()) ?? Date()
+    }
+
+    private func recomputeAge() {
+        guard let dob = encounter.patient?.dob else {
+            ageDisplay = ""
+            return
+        }
+        let age = DateUtils.age(from: dob)
+        ageDisplay = "\(age)"
+    }
+
     // MARK: - UI helpers
 
     private func sectionHeader(icon: String, title: String) -> some View {
@@ -391,54 +407,129 @@ struct PersonalDataView: View {
                 .visionTextField(isError: isError)
         }
     }
+}
 
-    private func dateField(selection: Binding<Date>, isError: Bool) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "calendar")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
+// MARK: - SpanishDateField (rueda grande e intuitiva día/mes/año)
+private struct SpanishDateField: View {
+    @Binding var selection: Date
+    let isError: Bool
 
-            DatePicker("", selection: selection, displayedComponents: .date)
-                .labelsHidden()
-                .datePickerStyle(.compact)
+    @State private var showSheet = false
 
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.black.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(isError ? BrandColors.danger.opacity(0.90) : BrandColors.accent.opacity(0.12), lineWidth: 1)
-        )
-    }
-
-    private func menuPickerField<Content: View>(
-        icon: String,
-        selection: Binding<String>,
-        placeholder: String,
-        isError: Bool,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-
-        ZStack {
-            Picker("", selection: selection) {
-                Text(placeholder).tag("")
-                content()
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .opacity(0.02)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
+    var body: some View {
+        Button {
+            showSheet = true
+        } label: {
             HStack(spacing: 10) {
-                Image(systemName: icon)
+                Image(systemName: "calendar")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
 
-                Text(selection.wrappedValue.isEmpty ? placeholder : selection.wrappedValue)
-                    .foregroundStyle(selection.wrappedValue.isEmpty ? .secondary : .primary)
+                Text(formattedSpanishDate(selection))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .opacity(0.7)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Color.black.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isError ? BrandColors.danger.opacity(0.90) : BrandColors.accent.opacity(0.12), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showSheet) {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Selecciona día, mes y año")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+
+                    Text("Fecha de nacimiento")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    // ✅ Grande e intuitivo: ruedas (día/mes/año)
+                    DatePicker(
+                        "",
+                        selection: $selection,
+                        in: allowedRange,
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .environment(\.locale, Locale(identifier: "es_MX"))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 260) // ✅ más grande
+                    .clipped()
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.black.opacity(0.04))
+                    )
+
+                    Spacer()
+                }
+                .padding(16)
+                .navigationTitle("Nacimiento")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancelar") { showSheet = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Listo") { showSheet = false }
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+            .presentationDetents([.large]) // ✅ se ve grande de verdad
+        }
+    }
+
+    // ✅ Rango razonable (evita fechas futuras)
+    private var allowedRange: ClosedRange<Date> {
+        let cal = Calendar.current
+        let min = cal.date(from: DateComponents(year: 1900, month: 1, day: 1)) ?? Date.distantPast
+        let max = Date() // hoy
+        return min...max
+    }
+
+    private func formattedSpanishDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_MX")
+        f.dateStyle = .long
+        f.timeStyle = .none
+        return f.string(from: date)
+    }
+}
+
+// MARK: - SexPickerField (botón 100% tocable + opciones ocupan todo)
+private struct SexPickerField: View {
+    @Binding var selection: String
+    let placeholder: String
+    let isError: Bool
+    @Binding var showDialog: Bool
+
+    var body: some View {
+        Button {
+            showDialog = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "figure.dress.line.vertical.figure")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Text(selection.isEmpty ? placeholder : selection)
+                    .foregroundStyle(selection.isEmpty ? .secondary : .primary)
                     .lineLimit(1)
 
                 Spacer()
@@ -449,14 +540,25 @@ struct PersonalDataView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(Color.black.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isError ? BrandColors.danger.opacity(0.90) : BrandColors.accent.opacity(0.12), lineWidth: 1)
             )
-            .allowsHitTesting(false)
         }
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+        .confirmationDialog("Selecciona sexo", isPresented: $showDialog, titleVisibility: .visible) {
+            ForEach(SexOption.allCases) { opt in
+                Button(opt.rawValue) { selection = opt.rawValue }
+            }
+
+            if !selection.isEmpty {
+                Button("Limpiar selección", role: .destructive) { selection = "" }
+            }
+
+            Button("Cancelar", role: .cancel) {}
+        }
     }
 }

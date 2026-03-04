@@ -46,12 +46,34 @@ final class Encounter {
     var ishihara: String
     var campimetry: String
 
-    // Examen visual
+    // =========================================================
+    // AGUDEZA VISUAL
+    // =========================================================
+
+    // (Compatibilidad / legado) Cercana simple (si ya la usas en PDF u otro lado)
+    var nearVaOD: String?
+    var nearVaOS: String?
+    var nearVaOU: String?
+
+    // Lejana (S/C y C/C) OD / OI / AO
     var vaOdSc: String
     var vaOsSc: String
+    var vaOuSc: String
     var vaOdCc: String
     var vaOsCc: String
+    var vaOuCc: String
 
+    // Cercana (S/C y C/C) OD / OI / AO
+    var nearVaOdSc: String
+    var nearVaOsSc: String
+    var nearVaOuSc: String
+    var nearVaOdCc: String
+    var nearVaOsCc: String
+    var nearVaOuCc: String
+
+    // =========================================================
+    // REFRACCIÓN
+    // =========================================================
     var rxOdSph: String
     var rxOdCyl: String
     var rxOdAxis: String
@@ -60,8 +82,11 @@ final class Encounter {
     var rxOsCyl: String
     var rxOsAxis: String
     var rxOsAdd: String
-    var dp: String
 
+    // ✅ Refracción: DIP (no DP)
+    var dip: String
+
+    // Recomendación
     var lensType: String
     var usage: String
     var followUpDate: Date?
@@ -73,6 +98,9 @@ final class Encounter {
     var payReference: String
     var payDiscount: String?
     var payNotes: String?
+
+    // Optometrista asignado
+    var optometristName: String?
 
     // Helpers (conveniencia para UI/PDF)
     var patientFirstName: String { patient?.firstName ?? "" }
@@ -115,11 +143,28 @@ final class Encounter {
         self.ishihara = ""
         self.campimetry = ""
 
+        // (Compatibilidad / legado) Cercana simple
+        self.nearVaOD = nil
+        self.nearVaOS = nil
+        self.nearVaOU = nil
+
+        // Lejana
         self.vaOdSc = ""
         self.vaOsSc = ""
+        self.vaOuSc = ""
         self.vaOdCc = ""
         self.vaOsCc = ""
+        self.vaOuCc = ""
 
+        // Cercana
+        self.nearVaOdSc = ""
+        self.nearVaOsSc = ""
+        self.nearVaOuSc = ""
+        self.nearVaOdCc = ""
+        self.nearVaOsCc = ""
+        self.nearVaOuCc = ""
+
+        // Refracción
         self.rxOdSph = ""
         self.rxOdCyl = ""
         self.rxOdAxis = ""
@@ -128,17 +173,22 @@ final class Encounter {
         self.rxOsCyl = ""
         self.rxOsAxis = ""
         self.rxOsAdd = ""
-        self.dp = ""
 
+        self.dip = ""
+
+        // Recomendación
         self.lensType = ""
         self.usage = ""
         self.followUpDate = nil
 
+        // Pago
         self.payStatus = ""
         self.payTotal = ""
         self.payMethod = ""
         self.payReference = ""
         self.payDiscount = nil
         self.payNotes = nil
+
+        self.optometristName = nil
     }
 }

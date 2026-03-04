@@ -15,11 +15,16 @@ struct EncounterWizardView: View {
     let onCancel: () -> Void
     let onFinish: (Encounter) -> Void
 
-    // ✅ Permitir iniciar en Step 1 (empresa) o Step 2 (óptica)
     var startAt: Step = .clinicalHistory
 
     @State private var stepIndex: Int = 0
     @State private var errors: [String: String] = [:]
+
+    // ✅ Intermedia (handoff)
+    @State private var goHandoff = false
+
+    // ✅ Evita resetear stepIndex al volver de navegación
+    @State private var didInit = false
 
     enum Step: Int, CaseIterable {
         case clinicalHistory
@@ -27,16 +32,6 @@ struct EncounterWizardView: View {
         case antecedents
         case exam
         case payment
-
-        var title: String {
-            switch self {
-            case .clinicalHistory: return "Historia clínica"
-            case .personalData:    return "Datos personales"
-            case .antecedents:     return "Antecedentes"
-            case .exam:            return "Examen"
-            case .payment:         return "Pago"
-            }
-        }
     }
 
     private var currentStep: Step {
@@ -48,8 +43,18 @@ struct EncounterWizardView: View {
     }
 
     private var isOpticaFlow: Bool {
-        // ✅ Si arrancas en personalData, asumimos “paciente externo”
         startAt == .personalData
+    }
+
+    private var startIndex: Int {
+        let idx = startAt.rawValue
+        return max(0, min(idx, Step.allCases.count - 1))
+    }
+
+    private var hasOptometristAssigned: Bool {
+        !(encounter.optometristName ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 
     var body: some View {
@@ -65,6 +70,14 @@ struct EncounterWizardView: View {
 
                 case .antecedents:
                     AntecedentsStep2Screen(encounter: encounter)
+                        .onAppear {
+                            // ✅ Candado duro: si llegan aquí sin optometrista, no debe pasar
+                            if !hasOptometristAssigned {
+                                // Regresa a datos personales y abre handoff
+                                stepIndex = Step.personalData.rawValue
+                                goHandoff = true
+                            }
+                        }
 
                 case .exam:
                     ExamStep3Screen(encounter: encounter, errors: errors)
@@ -79,12 +92,7 @@ struct EncounterWizardView: View {
 
             HStack(spacing: 12) {
                 SecondaryButton(title: stepIndex == startIndex ? "Cancelar" : "Atrás") {
-                    if stepIndex == startIndex {
-                        onCancel()
-                    } else {
-                        stepIndex -= 1
-                        errors = [:]
-                    }
+                    back()
                 }
 
                 PrimaryButton(title: isLastStep ? "Finalizar" : "Continuar") {
@@ -96,30 +104,68 @@ struct EncounterWizardView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
+            guard !didInit else { return }
+            didInit = true
+
             stepIndex = startIndex
 
-            // ✅ Si es óptica, prefill del step 1 para pasar validación
             if isOpticaFlow {
                 prefillClinicalHistoryForOpticaIfNeeded()
             }
         }
+        .background(
+            NavigationLink(
+                destination: OptometristHandoffScreen(encounter: encounter) {
+                    // ✅ SOLO si confirma (y guardó nombre) avanzamos a antecedentes
+                    stepIndex = Step.antecedents.rawValue
+                    goHandoff = false
+                },
+                isActive: $goHandoff
+            ) { EmptyView() }
+            .hidden()
+        )
     }
 
-    // ✅ índice inicial según Step
-    private var startIndex: Int {
-        let idx = startAt.rawValue
-        return max(0, min(idx, Step.allCases.count - 1))
+    // MARK: - Back
+
+    private func back() {
+        if stepIndex == startIndex {
+            onCancel()
+        } else {
+            stepIndex -= 1
+            errors = [:]
+        }
+    }
+
+    // MARK: - Next
+
+    private func next() {
+        errors = validate(step: currentStep)
+        guard errors.isEmpty else { return }
+
+        if isLastStep {
+            onFinish(encounter)
+            return
+        }
+
+        // ✅ Interceptar PersonalData -> (handoff) -> Antecedents
+        if currentStep == .personalData {
+            // NO movemos stepIndex aquí.
+            // Solo abrimos la intermedia. El avance real ocurre al confirmar nombre.
+            goHandoff = true
+            return
+        }
+
+        stepIndex += 1
     }
 
     // MARK: - Prefill Step 1 para Óptica
 
     private func prefillClinicalHistoryForOpticaIfNeeded() {
-        // companyName
         if encounter.companyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             encounter.companyName = company.name
         }
 
-        // Campos obligatorios
         if encounter.branch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             encounter.branch = "Óptica"
         }
@@ -133,28 +179,13 @@ struct EncounterWizardView: View {
             encounter.shift = "N/A"
         }
 
-        // Correo válido (tu validación exige que tenga "@")
         let email = encounter.companyEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         if email.isEmpty || !email.contains("@") {
             encounter.companyEmail = "optica@visionwow.mx"
         }
 
-        // Antigüedad: basta con llenar uno
         if encounter.seniorityYears == nil && encounter.seniorityMonths == nil && encounter.seniorityWeeks == nil {
             encounter.seniorityYears = 0
-        }
-    }
-
-    // MARK: - Navegación
-
-    private func next() {
-        errors = validate(step: currentStep)
-        guard errors.isEmpty else { return }
-
-        if isLastStep {
-            onFinish(encounter)
-        } else {
-            stepIndex += 1
         }
     }
 
@@ -164,12 +195,10 @@ struct EncounterWizardView: View {
         var e: [String: String] = [:]
 
         switch step {
-
         case .clinicalHistory:
             let years = encounter.seniorityYears
             let months = encounter.seniorityMonths
             let weeks = encounter.seniorityWeeks
-
             if years == nil && months == nil && weeks == nil {
                 e["seniorityYears"] = "Captura antigüedad en años, meses o semanas."
             }
@@ -206,11 +235,9 @@ struct EncounterWizardView: View {
             if p.firstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 e["firstName"] = "Campo obligatorio."
             }
-
             if p.lastName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 e["lastName"] = "Campo obligatorio."
             }
-
             if p.dob == nil {
                 e["dob"] = "Selecciona una fecha."
             }
@@ -232,29 +259,40 @@ struct EncounterWizardView: View {
             }
 
         case .antecedents:
+            // ✅ Puedes dejarlo vacío o meter validación específica
             break
 
         case .exam:
-            func isEmpty(_ value: String) -> Bool {
-                value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
+            func isEmpty(_ s: String) -> Bool { s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+            // Agudeza visual lejana (según tus nuevos campos)
             if isEmpty(encounter.vaOdSc) { e["vaOdSc"] = "Campo obligatorio." }
             if isEmpty(encounter.vaOsSc) { e["vaOsSc"] = "Campo obligatorio." }
+            if isEmpty(encounter.vaOuSc) { e["vaOuSc"] = "Campo obligatorio." }
+
             if isEmpty(encounter.vaOdCc) { e["vaOdCc"] = "Campo obligatorio." }
             if isEmpty(encounter.vaOsCc) { e["vaOsCc"] = "Campo obligatorio." }
+            if isEmpty(encounter.vaOuCc) { e["vaOuCc"] = "Campo obligatorio." }
 
+            // Agudeza visual cercana
+            if isEmpty(encounter.nearVaOdSc) { e["nearVaOdSc"] = "Campo obligatorio." }
+            if isEmpty(encounter.nearVaOsSc) { e["nearVaOsSc"] = "Campo obligatorio." }
+            if isEmpty(encounter.nearVaOuSc) { e["nearVaOuSc"] = "Campo obligatorio." }
+
+            if isEmpty(encounter.nearVaOdCc) { e["nearVaOdCc"] = "Campo obligatorio." }
+            if isEmpty(encounter.nearVaOsCc) { e["nearVaOsCc"] = "Campo obligatorio." }
+            if isEmpty(encounter.nearVaOuCc) { e["nearVaOuCc"] = "Campo obligatorio." }
+
+            // Refracción (ADD NO obligatorio)
             if isEmpty(encounter.rxOdSph)  { e["rxOdSph"]  = "Campo obligatorio." }
             if isEmpty(encounter.rxOdCyl)  { e["rxOdCyl"]  = "Campo obligatorio." }
             if isEmpty(encounter.rxOdAxis) { e["rxOdAxis"] = "Campo obligatorio." }
-            if isEmpty(encounter.rxOdAdd)  { e["rxOdAdd"]  = "Campo obligatorio." }
 
             if isEmpty(encounter.rxOsSph)  { e["rxOsSph"]  = "Campo obligatorio." }
             if isEmpty(encounter.rxOsCyl)  { e["rxOsCyl"]  = "Campo obligatorio." }
             if isEmpty(encounter.rxOsAxis) { e["rxOsAxis"] = "Campo obligatorio." }
-            if isEmpty(encounter.rxOsAdd)  { e["rxOsAdd"]  = "Campo obligatorio." }
 
-            if isEmpty(encounter.dp) { e["dp"] = "Campo obligatorio." }
+            if isEmpty(encounter.dip) { e["dip"] = "Campo obligatorio." }
 
             if isEmpty(encounter.lensType) { e["lensType"] = "Campo obligatorio." }
             if isEmpty(encounter.usage)    { e["usage"]    = "Campo obligatorio." }
@@ -267,15 +305,12 @@ struct EncounterWizardView: View {
             if encounter.payStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 e["payStatus"] = "Selecciona un estatus."
             }
-
             if encounter.payTotal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 e["payTotal"] = "Campo obligatorio."
             }
-
             if encounter.payMethod.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 e["payMethod"] = "Selecciona un método."
             }
-
             if encounter.payReference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 e["payReference"] = "Campo obligatorio."
             }
