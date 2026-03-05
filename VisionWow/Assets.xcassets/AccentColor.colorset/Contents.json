@@ -1,7 +1,15 @@
 {
   "colors" : [
     {
-      "filename" : "48.png",
+      "color" : {
+        "color-space" : "srgb",
+        "components" : {
+          "alpha" : "1.000",
+          "blue" : "0.498",
+          "green" : "0.220",
+          "red" : "0.906"
+        }
+      },
       "idiom" : "universal"
     }
   ],

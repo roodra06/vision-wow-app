@@ -30,9 +30,7 @@ enum PDFRenderer {
             y += 10
 
             // Body
-            y = PDFBody.drawBody(ctx: ctx, pageRect: pageRect, x: x, y: y, w: w, encounter: encounter)
-
-            _ = y
+            PDFBody.drawBody(ctx: ctx, pageRect: pageRect, x: x, y: y, w: w, encounter: encounter)
         }
     }
 }

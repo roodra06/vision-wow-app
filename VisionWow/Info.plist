@@ -6,5 +6,25 @@
 	<string>Vision Wow necesita acceso a la cámara para tomar la foto de perfil del paciente y grabar video de seguridad durante la firma.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Se requiere acceso al micrófono durante la grabación de video de firma del paciente.</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.visionwow.vwsync</string>
+			<key>UTTypeDescription</key>
+			<string>VisionWow Sync File</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>vwsync</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

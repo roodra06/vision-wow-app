@@ -29,6 +29,9 @@ struct CompanyDetailScreen: View {
     @State private var showDeleteEncounterConfirm1 = false
     @State private var showDeleteEncounterConfirm2 = false
 
+    // Error al eliminar
+    @State private var deleteError: String? = nil
+
     var body: some View {
         ZStack {
             BrandColors.backgroundGradient.ignoresSafeArea()
@@ -56,9 +59,11 @@ struct CompanyDetailScreen: View {
                 GeometryReader { geo in
                     VStack(spacing: 12) {
                         heroHeader(company: company, height: geo.size.height * 0.48)
+                            .entrance(delay: 0.06)
 
                         patientsSection(company: company)
                             .padding(.horizontal, 16)
+                            .entrance(delay: 0.18)
 
                         Spacer(minLength: 0)
                     }
@@ -94,6 +99,16 @@ struct CompanyDetailScreen: View {
                     }
                 } message: {
                     Text("Esta acción no se puede deshacer. ¿Deseas eliminar definitivamente la empresa?")
+                }
+
+                // Error al eliminar
+                .alert("No se pudo eliminar", isPresented: Binding(
+                    get: { deleteError != nil },
+                    set: { if !$0 { deleteError = nil } }
+                )) {
+                    Button("Aceptar", role: .cancel) { deleteError = nil }
+                } message: {
+                    Text(deleteError ?? "")
                 }
 
                 // Paciente alerts
@@ -206,7 +221,9 @@ struct CompanyDetailScreen: View {
 
                 // ✅ CTA: Generar reporte
                 NavigationLink {
-                    CompanyReportBuilderScreen(companyId: company.id)
+                    ReportAuthGate {
+                        CompanyReportBuilderScreen(companyId: company.id)
+                    }
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "doc.text.magnifyingglass")
@@ -233,11 +250,13 @@ struct CompanyDetailScreen: View {
 
                 // ✅ CTA: Reporte de ventas
                 NavigationLink {
-                    SalesReportScreen(
-                        companyName: company.name,
-                        encounters: company.encounters,
-                        showDateFilter: false
-                    )
+                    ReportAuthGate {
+                        SalesReportScreen(
+                            companyName: company.name,
+                            encounters: company.encounters,
+                            showDateFilter: false
+                        )
+                    }
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "chart.bar.doc.horizontal")
@@ -305,15 +324,15 @@ struct CompanyDetailScreen: View {
                 )
             } else {
                 VStack(spacing: 10) {
-                    ForEach(company.encounters.sorted { $0.createdAt > $1.createdAt }) { e in
+                    ForEach(Array(company.encounters.sorted { $0.createdAt > $1.createdAt }.enumerated()), id: \.element.id) { index, e in
                         NavigationLink {
-                            // ✅ Tap en toda la card: editar
                             EditEncounterWizardScreen(company: company, encounter: e)
                         } label: {
                             patientCard(company: company, encounter: e)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .entrance(delay: 0.22 + Double(index) * 0.06)
                     }
                 }
             }
@@ -337,7 +356,7 @@ struct CompanyDetailScreen: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 // Título: nombre del paciente
-                Text(patientDisplayName(encounter))
+                Text(encounter.displayName)
                     .font(.headline)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -367,9 +386,9 @@ struct CompanyDetailScreen: View {
 
                 // Pago / compra
                 HStack(spacing: 10) {
-                    Label(paymentSummary(encounter), systemImage: paymentIcon(encounter))
+                    Label(encounter.paymentSummary, systemImage: encounter.paymentIconName)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(paymentColor(encounter))
+                        .foregroundStyle(encounter.paymentColor)
                         .lineLimit(1)
 
                     Spacer(minLength: 0)
@@ -405,44 +424,7 @@ struct CompanyDetailScreen: View {
         .contentShape(Rectangle())
     }
 
-    // MARK: - Helpers (nombre/pago)
-
-    private func patientDisplayName(_ e: Encounter) -> String {
-        let first = (e.patient?.firstName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let last  = (e.patient?.lastName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let full = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
-        return full.isEmpty ? "Paciente" : full
-    }
-
-    private func paymentSummary(_ e: Encounter) -> String {
-        let status = e.payStatus.trimmingCharacters(in: .whitespacesAndNewlines)
-        let total  = e.payTotal.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if status.isEmpty && total.isEmpty { return "Sin compra" }
-        if !status.isEmpty && !total.isEmpty { return "\(status) • $\(total)" }
-        if !status.isEmpty { return status }
-        return "Total • $\(total)"
-    }
-
-    private func paymentIcon(_ e: Encounter) -> String {
-        let status = e.payStatus.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if status.contains("pag") { return "checkmark.seal.fill" }
-        if status.contains("pend") { return "clock.fill" }
-        if status.contains("cort") { return "gift.fill" }
-
-        let total = e.payTotal.trimmingCharacters(in: .whitespacesAndNewlines)
-        return total.isEmpty ? "cart.badge.minus" : "cart.fill"
-    }
-
-    private func paymentColor(_ e: Encounter) -> Color {
-        let status = e.payStatus.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if status.contains("pag") { return BrandColors.success }
-        if status.contains("pend") { return BrandColors.warning }
-        if status.contains("cort") { return BrandColors.info }
-
-        let total = e.payTotal.trimmingCharacters(in: .whitespacesAndNewlines)
-        return total.isEmpty ? .secondary : BrandColors.secondary
-    }
+    // MARK: - Helpers
 
     private func initials(from name: String) -> String {
         let parts = name
@@ -461,7 +443,7 @@ struct CompanyDetailScreen: View {
             try modelContext.save()
             dismiss()
         } catch {
-            print("ERROR deleting company:", error)
+            deleteError = "No se pudo eliminar la empresa. Inténtalo de nuevo.\n\n\(error.localizedDescription)"
         }
     }
 
@@ -470,7 +452,7 @@ struct CompanyDetailScreen: View {
         do {
             try modelContext.save()
         } catch {
-            print("ERROR deleting encounter:", error)
+            deleteError = "No se pudo eliminar el paciente. Inténtalo de nuevo.\n\n\(error.localizedDescription)"
         }
     }
 }

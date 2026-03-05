@@ -8,6 +8,7 @@ import UIKit
 
 enum PDFBody {
 
+    @discardableResult
     static func drawBody(
         ctx: UIGraphicsPDFRendererContext,
         pageRect: CGRect,

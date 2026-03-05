@@ -30,7 +30,7 @@ enum PDFRows {
     }
 
     static func drawLineRow4(a: (String, String), b: (String, String), c: (String, String), d: (String, String), x: CGFloat, y: CGFloat, w: CGFloat) -> CGFloat {
-        let gap: CGFloat = 10
+        let gap: CGFloat = 12
         let h: CGFloat = 22
         let colW = (w - gap * 3) / 4
 

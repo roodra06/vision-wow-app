@@ -2,19 +2,48 @@
 //  ReportGenerator.swift
 //  VisionWow
 //
-//  Created by Rodrigo Marcos on 19/02/26.
-//
 
 import Foundation
 import UIKit
 
 struct ReportGenerator {
 
-    // ✅ Conserva tu generateCSV como lo tengas (aquí lo dejo como stub)
+    // MARK: - Brand Colors (UIKit) — mismos que SalesReportGenerator
+    private static let brandPrimary   = UIColor(red: 0.906, green: 0.220, blue: 0.498, alpha: 1) // #E7387F magenta
+    private static let brandSecondary = UIColor(red: 0.463, green: 0.224, blue: 0.463, alpha: 1) // #763976 morado
+    private static let brandAccent    = UIColor(red: 0.714, green: 0.451, blue: 0.678, alpha: 1) // #B673AD lavanda
+    private static let brandSoft      = UIColor(red: 0.918, green: 0.816, blue: 0.878, alpha: 1) // #EAD0E0 rosa suave
+    private static let brandWarning   = UIColor(red: 0.753, green: 0.478, blue: 0.173, alpha: 1) // #C07A2C ámbar
+    private static let brandSuccess   = UIColor(red: 0.180, green: 0.545, blue: 0.424, alpha: 1) // #2E8B6C verde
+
     static func generateCSV(company: Company, encounters: [Encounter]) throws -> URL {
+        var lines: [String] = []
+
+        lines.append([
+            "Fecha", "Paciente", "Optometrista", "Diagnóstico", "Lentes", "Compra"
+        ].map { "\"\($0)\"" }.joined(separator: ","))
+
+        let fmt = DateFormatter()
+        fmt.dateStyle = .short
+        fmt.timeStyle = .none
+        fmt.locale = Locale(identifier: "es_MX")
+
+        for enc in encounters {
+            let row: [String] = [
+                fmt.string(from: enc.createdAt),
+                enc.patientFullName.isEmpty ? "Sin nombre" : enc.patientFullName,
+                enc.optometristName ?? "",
+                enc.diagnostico,
+                enc.lensType,
+                ReportComputer.didBuy(enc) ? "Sí" : "No"
+            ]
+            lines.append(row.map { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }.joined(separator: ","))
+        }
+
+        let data = (lines.joined(separator: "\n")).data(using: .utf8) ?? Data()
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("Reporte-\(company.name.sanitizedFileName)-\(Date().timeIntervalSince1970).csv")
-        try "pendiente".write(to: url, atomically: true, encoding: .utf8)
+        try data.write(to: url)
         return url
     }
 
@@ -30,163 +59,278 @@ struct ReportGenerator {
         selectedAntecedentKeys: [String]
     ) throws -> URL {
 
-        let pageRect = CGRect(x: 0, y: 0, width: 595, height: 842) // A4 @72dpi
-        let margin: CGFloat = 40
-        let contentWidth = pageRect.width - (margin * 2)
+        let logo = UIImage(named: "visionwow_logo")
+
+        // Portrait A4
+        let pageRect   = CGRect(x: 0, y: 0, width: 595, height: 842)
+        let margin: CGFloat  = 36
+        let contentW = pageRect.width - margin * 2
+
+        // Layout
+        let headerBandH: CGFloat = 80
+        let accentLineH: CGFloat = 3
+        let headerTotal = headerBandH + accentLineH
+
+        // Fuentes
+        let titleFont      = UIFont.systemFont(ofSize: 16, weight: .bold)
+        let subtitleFont   = UIFont.systemFont(ofSize: 9,  weight: .regular)
+        let sectionFont    = UIFont.systemFont(ofSize: 12, weight: .bold)
+        let bodyFont       = UIFont.systemFont(ofSize: 10, weight: .regular)
+        let bodyBoldFont   = UIFont.systemFont(ofSize: 10, weight: .semibold)
+        let footerFont     = UIFont.systemFont(ofSize: 7,  weight: .light)
+
+        let fullDateFmt = DateFormatter()
+        fullDateFmt.dateStyle = .long
+        fullDateFmt.timeStyle = .none
+        fullDateFmt.locale = Locale(identifier: "es_MX")
+
+        let yesColor: UIColor = brandAccent.withAlphaComponent(0.85)
+        let noColor:  UIColor = brandSoft.withAlphaComponent(0.85)
+        let cardBG:   UIColor = brandSoft.withAlphaComponent(0.22)
 
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
-
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("Reporte-\(company.name.sanitizedFileName)-\(Date().timeIntervalSince1970).pdf")
 
-        // Paleta corporativa simple
-        let primary = UIColor(red: 0.58, green: 0.17, blue: 0.94, alpha: 1.0) // morado
-        let accent  = UIColor(red: 0.98, green: 0.24, blue: 0.75, alpha: 1.0) // magenta
-        let text    = UIColor.black
-        let subtext = UIColor.darkGray
-        let cardBG  = UIColor(white: 0.97, alpha: 1.0)
-        let yesColor = accent.withAlphaComponent(0.85)      // “Sí”
-        let noColor  = UIColor(white: 0.85, alpha: 1.0)     // “No”
-
         try renderer.writePDF(to: url) { ctx in
             var y: CGFloat = 0
+            var pageNum = 1
+
+            // MARK: helpers
+
+            func drawGradient(cgCtx: CGContext, rect: CGRect, from: UIColor, to: UIColor) {
+                cgCtx.saveGState()
+                cgCtx.clip(to: rect)
+                let colors  = [from.cgColor, to.cgColor] as CFArray
+                if let grad = CGGradient(
+                    colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                    colors: colors, locations: [0, 1]
+                ) {
+                    cgCtx.drawLinearGradient(
+                        grad,
+                        start: CGPoint(x: rect.minX, y: rect.midY),
+                        end:   CGPoint(x: rect.maxX, y: rect.midY),
+                        options: []
+                    )
+                }
+                cgCtx.restoreGState()
+            }
+
+            func drawText(
+                _ text: String, font: UIFont, color: UIColor,
+                rect: CGRect, align: NSTextAlignment = .left
+            ) {
+                let ps = NSMutableParagraphStyle()
+                ps.alignment = align
+                ps.lineBreakMode = .byTruncatingTail
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: font, .foregroundColor: color, .paragraphStyle: ps
+                ]
+                (text as NSString).draw(in: rect, withAttributes: attrs)
+            }
+
+            // MARK: Header band
+
+            func drawHeader() {
+                let cg = ctx.cgContext
+                let bandRect = CGRect(x: 0, y: 0, width: pageRect.width, height: headerBandH)
+                drawGradient(cgCtx: cg, rect: bandRect, from: brandPrimary, to: brandSecondary)
+
+                // Accent line
+                cg.saveGState()
+                cg.setFillColor(brandAccent.cgColor)
+                cg.fill(CGRect(x: 0, y: headerBandH, width: pageRect.width, height: accentLineH))
+                cg.restoreGState()
+
+                var textX: CGFloat = margin
+
+                // Logo
+                if let logo = logo {
+                    let logoH: CGFloat = 54
+                    let logoW = (logo.size.width / logo.size.height) * logoH
+                    let logoRect = CGRect(
+                        x: margin,
+                        y: (headerBandH - logoH) / 2,
+                        width: logoW, height: logoH
+                    )
+                    logo.draw(in: logoRect)
+                    textX = logoRect.maxX + 14
+                }
+
+                // Título
+                drawText(
+                    "VisionWow — Reporte Corporativo",
+                    font: titleFont, color: .white,
+                    rect: CGRect(x: textX, y: 14, width: contentW - (textX - margin), height: 22)
+                )
+                drawText(
+                    company.name,
+                    font: UIFont.systemFont(ofSize: 22, weight: .bold), color: UIColor.white.withAlphaComponent(0.95),
+                    rect: CGRect(x: textX, y: 36, width: contentW - (textX - margin), height: 28)
+                )
+
+                // Fecha alineada a la derecha
+                let dateStr = "Generado: \(fullDateFmt.string(from: Date()))"
+                let dateAttrs: [NSAttributedString.Key: Any] = [
+                    .font: subtitleFont,
+                    .foregroundColor: UIColor.white.withAlphaComponent(0.80)
+                ]
+                let dateSize = (dateStr as NSString).size(withAttributes: dateAttrs)
+                (dateStr as NSString).draw(
+                    at: CGPoint(
+                        x: pageRect.width - margin - dateSize.width,
+                        y: (headerBandH - dateSize.height) / 2
+                    ),
+                    withAttributes: dateAttrs
+                )
+
+                y = headerTotal + 16
+            }
+
+            // MARK: Footer
+
+            func drawFooter() {
+                let cg = ctx.cgContext
+                let footerY = pageRect.height - margin + 4
+
+                cg.saveGState()
+                cg.setStrokeColor(brandAccent.withAlphaComponent(0.3).cgColor)
+                cg.setLineWidth(0.5)
+                cg.move(to:    CGPoint(x: margin, y: footerY - 3))
+                cg.addLine(to: CGPoint(x: pageRect.width - margin, y: footerY - 3))
+                cg.strokePath()
+                cg.restoreGState()
+
+                drawText(
+                    "VisionWow · Reporte Corporativo",
+                    font: footerFont, color: brandAccent.withAlphaComponent(0.55),
+                    rect: CGRect(x: margin, y: footerY, width: 200, height: 10)
+                )
+                drawText(
+                    "Pág. \(pageNum)",
+                    font: footerFont, color: .gray,
+                    rect: CGRect(x: pageRect.width - margin - 40, y: footerY, width: 40, height: 10),
+                    align: .right
+                )
+                pageNum += 1
+            }
+
+            // MARK: New page
 
             func newPage() {
+                drawFooter()
                 ctx.beginPage()
                 y = margin
                 drawHeader()
             }
 
-            func drawHeader() {
-                let headerRect = CGRect(x: 0, y: 0, width: pageRect.width, height: 92)
-                let cg = ctx.cgContext
-                cg.saveGState()
-                cg.setFillColor(primary.withAlphaComponent(0.10).cgColor)
-                cg.fill(headerRect)
-
-                cg.setFillColor(accent.cgColor)
-                cg.fill(CGRect(x: 0, y: 92, width: pageRect.width, height: 3))
-                cg.restoreGState()
-
-                drawText("VisionWow — Reporte corporativo", font: .boldSystemFont(ofSize: 16), color: text,
-                         rect: CGRect(x: margin, y: 18, width: contentWidth, height: 22))
-
-                drawText(company.name, font: .boldSystemFont(ofSize: 24), color: primary,
-                         rect: CGRect(x: margin, y: 40, width: contentWidth, height: 28))
-
-                drawText("Generado: \(Date().formatted(date: .long, time: .shortened))",
-                         font: .systemFont(ofSize: 11), color: subtext,
-                         rect: CGRect(x: margin, y: 70, width: contentWidth, height: 16))
-
-                y = 110
-            }
+            // MARK: Card
 
             func drawCard(title: String, height: CGFloat, draw: (CGRect) -> Void) {
-                let rect = CGRect(x: margin, y: y, width: contentWidth, height: height)
-
-                if rect.maxY > pageRect.height - margin {
+                if y + height > pageRect.height - margin - 12 {
                     newPage()
-                    return drawCard(title: title, height: height, draw: draw)
+                    drawCard(title: title, height: height, draw: draw)
+                    return
                 }
 
                 let cg = ctx.cgContext
+                let rect = CGRect(x: margin, y: y, width: contentW, height: height)
+
                 cg.saveGState()
                 cg.setFillColor(cardBG.cgColor)
                 cg.fill(rect)
-                cg.setStrokeColor(primary.withAlphaComponent(0.18).cgColor)
+                cg.setStrokeColor(brandPrimary.withAlphaComponent(0.22).cgColor)
                 cg.setLineWidth(1)
                 cg.stroke(rect)
                 cg.restoreGState()
 
-                drawText(title, font: .boldSystemFont(ofSize: 14), color: text,
-                         rect: CGRect(x: rect.minX + 14, y: rect.minY + 12, width: rect.width - 28, height: 18))
+                // Section title bar
+                let titleBar = CGRect(x: margin, y: y, width: contentW, height: 22)
+                cg.saveGState()
+                cg.setFillColor(brandPrimary.withAlphaComponent(0.12).cgColor)
+                cg.fill(titleBar)
+                cg.restoreGState()
 
-                let inner = CGRect(x: rect.minX + 14, y: rect.minY + 36, width: rect.width - 28, height: rect.height - 50)
+                drawText(
+                    title, font: sectionFont, color: brandSecondary,
+                    rect: CGRect(x: margin + 10, y: y + 4, width: contentW - 20, height: 16)
+                )
+
+                let inner = CGRect(
+                    x: margin + 14, y: y + 32,
+                    width: contentW - 28, height: height - 44
+                )
                 draw(inner)
 
-                y = rect.maxY + 14
+                y += height + 14
             }
 
-            func drawText(_ text: String, font: UIFont, color: UIColor, rect: CGRect, align: NSTextAlignment = .left) {
-                let paragraph = NSMutableParagraphStyle()
-                paragraph.alignment = align
-                paragraph.lineBreakMode = .byTruncatingTail
+            // MARK: Pill
 
-                let attrs: [NSAttributedString.Key: Any] = [
-                    .font: font,
-                    .foregroundColor: color,
-                    .paragraphStyle: paragraph
-                ]
-                (text as NSString).draw(in: rect, withAttributes: attrs)
-            }
-
-            func drawPill(_ label: String, value: String, x: CGFloat, y: CGFloat, w: CGFloat) {
+            func drawPill(_ label: String, value: String, color: UIColor, x: CGFloat, y0: CGFloat, w: CGFloat) {
                 let cg = ctx.cgContext
-                let h: CGFloat = 44
-                let rect = CGRect(x: x, y: y, width: w, height: h)
-
+                let rect = CGRect(x: x, y: y0, width: w, height: 48)
                 cg.saveGState()
                 cg.setFillColor(UIColor.white.cgColor)
                 cg.fill(rect)
-                cg.setStrokeColor(primary.withAlphaComponent(0.16).cgColor)
+                cg.setStrokeColor(brandPrimary.withAlphaComponent(0.18).cgColor)
                 cg.setLineWidth(1)
                 cg.stroke(rect)
                 cg.restoreGState()
 
-                drawText(label, font: .systemFont(ofSize: 10), color: subtext,
-                         rect: CGRect(x: rect.minX + 10, y: rect.minY + 7, width: rect.width - 20, height: 12))
-                drawText(value, font: .boldSystemFont(ofSize: 16), color: text,
-                         rect: CGRect(x: rect.minX + 10, y: rect.minY + 20, width: rect.width - 20, height: 20))
+                drawText(
+                    label, font: UIFont.systemFont(ofSize: 9, weight: .semibold), color: .darkGray,
+                    rect: CGRect(x: rect.minX + 10, y: rect.minY + 7, width: rect.width - 20, height: 13)
+                )
+                drawText(
+                    value, font: UIFont.systemFont(ofSize: 18, weight: .bold), color: color,
+                    rect: CGRect(x: rect.minX + 10, y: rect.minY + 22, width: rect.width - 20, height: 22)
+                )
             }
 
-            // MARK: - Donut chart (Sí / No)
-            func drawDonutChart(
-                title: String,
-                yes: Int,
-                no: Int,
-                rect: CGRect
-            ) {
+            // MARK: Donut chart
+
+            func drawDonutChart(yes: Int, no: Int, rect: CGRect) {
                 let cg = ctx.cgContext
-
-                drawText(title, font: .systemFont(ofSize: 12, weight: .semibold), color: subtext,
-                         rect: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: 16))
-
                 let total = max(1, yes + no)
                 let yesPct = CGFloat(yes) / CGFloat(total)
 
-                let size = min(rect.width * 0.40, rect.height - 22)
-                let donutRect = CGRect(x: rect.minX, y: rect.minY + 22, width: size, height: size)
-
+                let size = min(rect.width * 0.40, rect.height)
+                let donutRect = CGRect(x: rect.minX, y: rect.minY, width: size, height: size)
                 let center = CGPoint(x: donutRect.midX, y: donutRect.midY)
                 let radius = min(donutRect.width, donutRect.height) / 2.0
-                let lineW: CGFloat = 14
-
+                let lineW: CGFloat = 16
                 let start = -CGFloat.pi / 2
                 let yesEnd = start + (2 * CGFloat.pi * yesPct)
 
-                // Track (No / base)
                 cg.saveGState()
                 cg.setLineWidth(lineW)
                 cg.setStrokeColor(noColor.cgColor)
-                cg.addArc(center: center, radius: radius - lineW/2, startAngle: 0, endAngle: 2 * .pi, clockwise: false)
+                cg.addArc(center: center, radius: radius - lineW / 2,
+                          startAngle: 0, endAngle: 2 * .pi, clockwise: false)
                 cg.strokePath()
-
-                // Yes arc
                 cg.setStrokeColor(yesColor.cgColor)
-                cg.addArc(center: center, radius: radius - lineW/2, startAngle: start, endAngle: yesEnd, clockwise: false)
+                cg.addArc(center: center, radius: radius - lineW / 2,
+                          startAngle: start, endAngle: yesEnd, clockwise: false)
                 cg.strokePath()
                 cg.restoreGState()
 
-                // Center text
-                drawText("\(Int(round(yesPct * 100)))%", font: .boldSystemFont(ofSize: 18), color: text,
-                         rect: CGRect(x: donutRect.minX, y: donutRect.midY - 12, width: donutRect.width, height: 24),
-                         align: .center)
+                drawText(
+                    "\(Int(round(yesPct * 100)))%",
+                    font: UIFont.boldSystemFont(ofSize: 18), color: brandSecondary,
+                    rect: CGRect(x: donutRect.minX, y: donutRect.midY - 12,
+                                 width: donutRect.width, height: 24),
+                    align: .center
+                )
+                drawText(
+                    "Sí",
+                    font: UIFont.systemFont(ofSize: 10), color: .darkGray,
+                    rect: CGRect(x: donutRect.minX, y: donutRect.midY + 12,
+                                 width: donutRect.width, height: 14),
+                    align: .center
+                )
 
-                drawText("Sí", font: .systemFont(ofSize: 10), color: subtext,
-                         rect: CGRect(x: donutRect.minX, y: donutRect.midY + 12, width: donutRect.width, height: 14),
-                         align: .center)
-
-                // Legend right
+                // Legend
                 let legendX = donutRect.maxX + 18
                 let legendW = rect.maxX - legendX
 
@@ -196,244 +340,224 @@ struct ReportGenerator {
                     cg.setFillColor(color.cgColor)
                     cg.fillEllipse(in: dot)
                     cg.restoreGState()
-
-                    drawText(label, font: .systemFont(ofSize: 11), color: text,
+                    drawText(label, font: bodyFont, color: .darkGray,
                              rect: CGRect(x: legendX + 16, y: y0, width: legendW * 0.70, height: 16))
-                    drawText("\(value)", font: .systemFont(ofSize: 11, weight: .semibold), color: subtext,
-                             rect: CGRect(x: legendX + legendW * 0.72, y: y0, width: legendW * 0.28, height: 16),
-                             align: .right)
+                    drawText("\(value)", font: bodyBoldFont, color: .darkGray,
+                             rect: CGRect(x: legendX + legendW * 0.72, y: y0,
+                                          width: legendW * 0.28, height: 16), align: .right)
                 }
 
-                legendRow(y0: rect.minY + 28, color: yesColor, label: "Sí", value: yes)
-                legendRow(y0: rect.minY + 48, color: noColor, label: "No", value: no)
-                legendRow(y0: rect.minY + 74, color: UIColor.clear, label: "Total revisados", value: yes + no)
+                legendRow(y0: rect.minY + 10, color: yesColor,    label: "Sí",              value: yes)
+                legendRow(y0: rect.minY + 30, color: noColor,     label: "No",              value: no)
+                legendRow(y0: rect.minY + 56, color: .clear,      label: "Total revisados", value: yes + no)
             }
 
-            // MARK: - Stacked Yes/No bar list (Top N)
-            func drawYesNoStackedBars(
-                title: String,
-                total: Int,
-                dataYesCounts: [(String, Int)], // label -> yesCount
-                rect: CGRect
-            ) {
-                drawText(title, font: .systemFont(ofSize: 12, weight: .semibold), color: subtext,
-                         rect: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: 16))
+            // MARK: Stacked bars
 
-                // Legend
-                let legendY = rect.minY + 18
-                drawLegendDot(x: rect.minX, y: legendY, color: yesColor)
-                drawText("Sí", font: .systemFont(ofSize: 10), color: text,
-                         rect: CGRect(x: rect.minX + 14, y: legendY - 2, width: 40, height: 14))
-                drawLegendDot(x: rect.minX + 54, y: legendY, color: noColor)
-                drawText("No", font: .systemFont(ofSize: 10), color: text,
-                         rect: CGRect(x: rect.minX + 68, y: legendY - 2, width: 40, height: 14))
+            func drawStackedBars(total: Int, dataYesCounts: [(String, Int)], rect: CGRect) {
+                let cg = ctx.cgContext
 
-                let tableTop = rect.minY + 36
+                // Legend header
+                func legendDot(x: CGFloat, y0: CGFloat, color: UIColor) {
+                    cg.saveGState()
+                    cg.setFillColor(color.cgColor)
+                    cg.fillEllipse(in: CGRect(x: x, y: y0, width: 10, height: 10))
+                    cg.restoreGState()
+                }
+
+                let legendY = rect.minY
+                legendDot(x: rect.minX, y0: legendY, color: yesColor)
+                drawText("Sí", font: bodyFont, color: .darkGray,
+                         rect: CGRect(x: rect.minX + 14, y: legendY - 2, width: 30, height: 14))
+                legendDot(x: rect.minX + 50, y0: legendY, color: noColor)
+                drawText("No", font: bodyFont, color: .darkGray,
+                         rect: CGRect(x: rect.minX + 64, y: legendY - 2, width: 30, height: 14))
+
+                let tableTop = rect.minY + 20
                 let rowH: CGFloat = 18
-                let maxRows = Int((rect.maxY - tableTop) / rowH)
-
-                // Columns
-                let labelW = rect.width * 0.45
-                let barW   = rect.width * 0.37
+                let labelW = rect.width * 0.44
+                let barW   = rect.width * 0.38
                 let numW   = rect.width - labelW - barW
-
-                var yRow = tableTop
+                var yRow   = tableTop
                 let safeTotal = max(1, total)
 
-                for (label, yesCount) in dataYesCounts.prefix(maxRows) {
+                for (label, yesCount) in dataYesCounts {
+                    if yRow + rowH > rect.maxY { break }
                     let noCount = max(0, safeTotal - yesCount)
 
-                    // label
-                    drawText(label, font: .systemFont(ofSize: 10), color: text,
+                    drawText(label, font: bodyFont, color: .darkGray,
                              rect: CGRect(x: rect.minX, y: yRow, width: labelW - 6, height: rowH))
 
-                    // stacked bar
-                    let barX = rect.minX + labelW
+                    let barX   = rect.minX + labelW
                     let barRect = CGRect(x: barX, y: yRow + 3, width: barW, height: rowH - 6)
+                    let yesW    = barRect.width * (CGFloat(yesCount) / CGFloat(safeTotal))
 
-                    let yesW = barRect.width * (CGFloat(yesCount) / CGFloat(safeTotal))
-                    _ = barRect.width - yesW
-
-                    let cg = ctx.cgContext
                     cg.saveGState()
                     cg.setFillColor(noColor.cgColor)
                     cg.fill(barRect)
-
                     cg.setFillColor(yesColor.cgColor)
                     cg.fill(CGRect(x: barRect.minX, y: barRect.minY, width: yesW, height: barRect.height))
-
-                    cg.setStrokeColor(UIColor(white: 0.75, alpha: 1).cgColor)
-                    cg.setLineWidth(0.6)
+                    cg.setStrokeColor(brandAccent.withAlphaComponent(0.3).cgColor)
+                    cg.setLineWidth(0.5)
                     cg.stroke(barRect)
                     cg.restoreGState()
 
-                    // numbers “yes / no”
-                    let numText = "\(yesCount) / \(noCount)"
-                    drawText(numText, font: .systemFont(ofSize: 10, weight: .semibold), color: subtext,
-                             rect: CGRect(x: rect.minX + labelW + barW + 6, y: yRow, width: numW - 6, height: rowH),
-                             align: .right)
-
+                    drawText("\(yesCount) / \(noCount)", font: bodyBoldFont, color: .darkGray,
+                             rect: CGRect(x: rect.minX + labelW + barW + 6, y: yRow,
+                                          width: numW - 6, height: rowH), align: .right)
                     yRow += rowH
-                    if yRow + rowH > rect.maxY { break }
-                }
-
-                func drawLegendDot(x: CGFloat, y: CGFloat, color: UIColor) {
-                    let cg = ctx.cgContext
-                    cg.saveGState()
-                    cg.setFillColor(color.cgColor)
-                    cg.fillEllipse(in: CGRect(x: x, y: y, width: 10, height: 10))
-                    cg.restoreGState()
                 }
             }
 
-            func drawBarChart(title: String, data: [(String, Int)], rect: CGRect) {
+            // MARK: Bar chart
+
+            func drawBarChart(data: [(String, Int)], rect: CGRect) {
                 let cg = ctx.cgContext
-
-                drawText(title, font: .systemFont(ofSize: 12, weight: .semibold), color: subtext,
-                         rect: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: 16))
-
-                let chartRect = CGRect(x: rect.minX, y: rect.minY + 20, width: rect.width, height: rect.height - 20)
-
                 let maxValue = max(1, data.map { $0.1 }.max() ?? 1)
                 let barH: CGFloat = 14
-                let gap: CGFloat = 10
+                let gap:  CGFloat = 10
+                var yBar  = rect.minY
 
-                var yBar = chartRect.minY
                 for (label, value) in data.prefix(10) {
-                    if yBar + barH > chartRect.maxY { break }
+                    if yBar + barH > rect.maxY { break }
+                    let pct  = CGFloat(value) / CGFloat(maxValue)
+                    let barW = (rect.width * 0.60) * pct
+                    let barX = rect.minX + rect.width * 0.38
 
-                    let pct = CGFloat(value) / CGFloat(maxValue)
-                    let barW = (chartRect.width * 0.62) * pct
-
-                    drawText(label, font: .systemFont(ofSize: 10), color: text,
-                             rect: CGRect(x: chartRect.minX, y: yBar - 1, width: chartRect.width * 0.36, height: barH + 2))
-
-                    let barX = chartRect.minX + chartRect.width * 0.38
-                    let barRect = CGRect(x: barX, y: yBar, width: barW, height: barH)
+                    drawText(label, font: bodyFont, color: .darkGray,
+                             rect: CGRect(x: rect.minX, y: yBar - 1, width: rect.width * 0.36, height: barH + 2))
 
                     cg.saveGState()
-                    cg.setFillColor(primary.withAlphaComponent(0.85).cgColor)
-                    cg.fill(barRect)
+                    cg.setFillColor(brandPrimary.withAlphaComponent(0.82).cgColor)
+                    cg.fill(CGRect(x: barX, y: yBar, width: barW, height: barH))
                     cg.restoreGState()
 
-                    drawText("\(value)", font: .systemFont(ofSize: 10, weight: .semibold), color: subtext,
-                             rect: CGRect(x: barX + barW + 6, y: yBar - 1, width: chartRect.maxX - (barX + barW + 6), height: barH + 2))
-
+                    drawText("\(value)", font: bodyBoldFont, color: .darkGray,
+                             rect: CGRect(x: barX + barW + 6, y: yBar - 1,
+                                          width: rect.maxX - (barX + barW + 6), height: barH + 2))
                     yBar += barH + gap
                 }
             }
 
-            // ======= PDF START =======
-            newPage()
+            // ── PDF START ──────────────────────────────────────────────────────
+
+            ctx.beginPage()
+            drawHeader()
 
             // Resumen / KPIs
             if includeOverview {
                 drawCard(title: "Resumen ejecutivo", height: 130) { rect in
                     let colW = (rect.width - 20) / 3
                     drawPill("Pacientes revisados", value: "\(summary.totalEncounters)",
-                             x: rect.minX, y: rect.minY, w: colW)
-
+                             color: brandSecondary,
+                             x: rect.minX, y0: rect.minY, w: colW)
                     drawPill("Compraron lentes", value: "\(summary.boughtCount)",
-                             x: rect.minX + colW + 10, y: rect.minY, w: colW)
-
+                             color: brandPrimary,
+                             x: rect.minX + colW + 10, y0: rect.minY, w: colW)
                     drawPill("Tasa de compra", value: "\(summary.buyRatePercent)%",
-                             x: rect.minX + (colW + 10) * 2, y: rect.minY, w: colW)
-
-                    drawText("Periodo: Todo el histórico", font: .systemFont(ofSize: 11), color: subtext,
-                             rect: CGRect(x: rect.minX, y: rect.minY + 58, width: rect.width, height: 16))
-                    drawText("Nota: las métricas se calculan sobre el total de pacientes revisados en este reporte.",
-                             font: .systemFont(ofSize: 10), color: subtext,
-                             rect: CGRect(x: rect.minX, y: rect.minY + 76, width: rect.width, height: 34))
+                             color: brandSuccess,
+                             x: rect.minX + (colW + 10) * 2, y0: rect.minY, w: colW)
+                    drawText(
+                        "Las métricas se calculan sobre el total de pacientes revisados en este reporte.",
+                        font: bodyFont, color: .gray,
+                        rect: CGRect(x: rect.minX, y: rect.minY + 58, width: rect.width, height: 24)
+                    )
                 }
             }
 
-            // Compra: ahora con DONA “Sí/No” del total
+            // Conversión compra
             if includePaymentStats {
-                drawCard(title: "Conversión / compra (sobre el total)", height: 190) { rect in
-                    let yes = summary.boughtCount
-                    let no = summary.notBoughtCount
-                    drawDonutChart(title: "Compraron lentes", yes: yes, no: no, rect: rect)
+                drawCard(title: "Conversión · Compraron lentes (Sí / No)", height: 180) { rect in
+                    drawDonutChart(yes: summary.boughtCount, no: summary.notBoughtCount, rect: rect)
                 }
             }
 
             // Dioptrías
             if includeDiopterStats {
                 let diopData = summary.diopterDistribution.map { ($0.label, $0.count) }
-                drawCard(title: "Distribución de graduación (dioptrías – esfera)", height: 220) { rect in
-                    drawBarChart(title: "Distribución por rangos", data: diopData, rect: rect)
+                drawCard(title: "Distribución de graduación (dioptrías — esfera)", height: 220) { rect in
+                    drawBarChart(data: diopData, rect: rect)
                 }
             }
 
             // Antecedentes: Top con barras apiladas Sí/No
             if includeAntecedentStats {
-                let total = summary.totalEncounters
-
-                // Top global marcado por pacientes
-                let top = summary.topAntecedents // [(String, Int)] ya viene ordenado
-
-                drawCard(title: "Antecedentes / síntomas (Top 10 — Sí vs No)", height: 280) { rect in
-                    drawYesNoStackedBars(
-                        title: "Del total revisado (\(total)), cuántos SÍ lo marcaron y cuántos NO",
-                        total: total,
-                        dataYesCounts: top,
-                        rect: rect
-                    )
+                let top = summary.topAntecedents
+                drawCard(title: "Antecedentes / síntomas — Top 10 (Sí vs No)", height: 280) { rect in
+                    drawStackedBars(total: summary.totalEncounters, dataYesCounts: top, rect: rect)
                 }
 
-                // Bloque extra: si usaron filtros en el builder, reflejarlo también
                 if !selectedAntecedentKeys.isEmpty {
                     let selectedData = summary.antecedentCountsSelectedFilterKeys
                         .sorted { $0.value > $1.value }
                         .map { ($0.key, $0.value) }
-
                     drawCard(title: "Filtros seleccionados (Sí vs No)", height: 240) { rect in
-                        drawYesNoStackedBars(
-                            title: "Frecuencia de los filtros elegidos (sobre el total del reporte)",
-                            total: total,
-                            dataYesCounts: selectedData,
-                            rect: rect
-                        )
+                        drawStackedBars(total: summary.totalEncounters, dataYesCounts: selectedData, rect: rect)
                     }
                 }
             }
 
-            // Lista de pacientes (compacta)
+            // Lista de pacientes
             if includePatientList {
-                drawCard(title: "Listado (extracto)", height: 330) { rect in
+                drawCard(title: "Listado de pacientes revisados", height: 340) { rect in
                     let cg = ctx.cgContext
-                    cg.saveGState()
-                    cg.setStrokeColor(UIColor(white: 0.85, alpha: 1).cgColor)
-                    cg.setLineWidth(1)
-
-                    var yRow = rect.minY
+                    let colW = rect.width
                     let rowH: CGFloat = 18
+                    var yRow = rect.minY
 
-                    func row(_ left: String, _ right: String, bold: Bool = false) {
-                        let font = bold ? UIFont.boldSystemFont(ofSize: 10) : UIFont.systemFont(ofSize: 10)
-                        drawText(left, font: font, color: text,
-                                 rect: CGRect(x: rect.minX, y: yRow, width: rect.width * 0.70, height: rowH))
-                        drawText(right, font: font, color: subtext,
-                                 rect: CGRect(x: rect.minX + rect.width * 0.72, y: yRow, width: rect.width * 0.28, height: rowH),
-                                 align: .right)
+                    func row(_ left: String, _ right: String, bold: Bool = false, rowIdx: Int = -1) {
+                        if rowIdx >= 0 {
+                            let bg: UIColor = rowIdx % 2 == 0 ? .white : brandSoft.withAlphaComponent(0.18)
+                            cg.saveGState()
+                            cg.setFillColor(bg.cgColor)
+                            cg.fill(CGRect(x: rect.minX, y: yRow, width: colW, height: rowH))
+                            cg.restoreGState()
+                        }
+                        let font = bold ? bodyBoldFont : bodyFont
+                        drawText(left,  font: font, color: bold ? brandSecondary : .darkGray,
+                                 rect: CGRect(x: rect.minX + 4, y: yRow, width: colW * 0.70, height: rowH))
+                        drawText(right, font: font, color: bold ? brandSecondary : .darkGray,
+                                 rect: CGRect(x: rect.minX + colW * 0.72, y: yRow,
+                                              width: colW * 0.28, height: rowH), align: .right)
+                        cg.saveGState()
+                        cg.setStrokeColor(brandSoft.cgColor)
+                        cg.setLineWidth(0.5)
+                        cg.stroke(CGRect(x: rect.minX, y: yRow + rowH - 1, width: colW, height: 0.5))
+                        cg.restoreGState()
                         yRow += rowH
-                        cg.stroke(CGRect(x: rect.minX, y: yRow - 2, width: rect.width, height: 1))
                     }
 
-                    row("Paciente", "Compra", bold: true)
+                    // Column header row
+                    cg.saveGState()
+                    cg.setFillColor(brandPrimary.withAlphaComponent(0.88).cgColor)
+                    cg.fill(CGRect(x: rect.minX, y: yRow, width: colW, height: rowH))
+                    cg.restoreGState()
+                    let hdrAttrs: [NSAttributedString.Key: Any] = [
+                        .font: bodyBoldFont, .foregroundColor: UIColor.white
+                    ]
+                    "Paciente".draw(
+                        in: CGRect(x: rect.minX + 4, y: yRow, width: colW * 0.70, height: rowH),
+                        withAttributes: hdrAttrs
+                    )
+                    "Compra".draw(
+                        in: CGRect(x: rect.minX + colW * 0.72, y: yRow, width: colW * 0.28, height: rowH),
+                        withAttributes: hdrAttrs
+                    )
+                    yRow += rowH
 
-                    for e in encounters.prefix(14) {
+                    for (idx, e) in encounters.prefix(16).enumerated() {
+                        if yRow > rect.maxY - rowH { break }
                         let name = [
                             (e.patient?.firstName ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
-                            (e.patient?.lastName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                            (e.patient?.lastName  ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                         ].filter { !$0.isEmpty }.joined(separator: " ")
                         let buy = ReportComputer.didBuy(e) ? "Sí" : "No"
-                        row(name.isEmpty ? "Paciente" : name, buy)
-                        if yRow > rect.maxY - rowH { break }
+                        row(name.isEmpty ? "Paciente" : name, buy, rowIdx: idx)
                     }
-
-                    cg.restoreGState()
                 }
             }
+
+            drawFooter()
         }
 
         return url

@@ -1,5 +1,54 @@
 import SwiftUI
 
+// MARK: - Mica shape (lente óptico real: rectangular con esquinas redondeadas y leve convexidad en top/bottom)
+private struct LensShape: Shape {
+    /// Radio de esquinas. Para lentes pequeñas usa ~22, para grandes ~32.
+    var cornerRadius: CGFloat = 26
+    /// Cuánto se bombean hacia afuera los bordes superior e inferior (0 = plano, 6 = convexo leve).
+    var bow: CGFloat = 5
+
+    func path(in rect: CGRect) -> Path {
+        let cr = min(cornerRadius, rect.height / 2, rect.width / 2)
+        var p = Path()
+
+        // ── Arista superior: de top-left arc → quad → top-right arc
+        p.move(to: CGPoint(x: rect.minX + cr, y: rect.minY))
+        p.addQuadCurve(
+            to:      CGPoint(x: rect.maxX - cr, y: rect.minY),
+            control: CGPoint(x: rect.midX, y: rect.minY - bow)   // convexidad hacia arriba
+        )
+        // esquina superior derecha
+        p.addArc(center: CGPoint(x: rect.maxX - cr, y: rect.minY + cr),
+                 radius: cr, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+
+        // ── Arista derecha (recta)
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - cr))
+
+        // esquina inferior derecha
+        p.addArc(center: CGPoint(x: rect.maxX - cr, y: rect.maxY - cr),
+                 radius: cr, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+
+        // ── Arista inferior: quad convexo hacia abajo
+        p.addQuadCurve(
+            to:      CGPoint(x: rect.minX + cr, y: rect.maxY),
+            control: CGPoint(x: rect.midX, y: rect.maxY + bow)   // convexidad hacia abajo
+        )
+        // esquina inferior izquierda
+        p.addArc(center: CGPoint(x: rect.minX + cr, y: rect.maxY - cr),
+                 radius: cr, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+
+        // ── Arista izquierda (recta)
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + cr))
+
+        // esquina superior izquierda
+        p.addArc(center: CGPoint(x: rect.minX + cr, y: rect.minY + cr),
+                 radius: cr, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+
+        p.closeSubpath()
+        return p
+    }
+}
+
 // MARK: - Enums
 
 enum LensCategory: String, CaseIterable {
@@ -213,6 +262,7 @@ struct LensPickerSheet: View {
     var onDismiss: () -> Void
 
     @State private var step: LensWizardStep = .category
+    @State private var isGoingForward = true
     @State private var selectedCategory: LensCategory? = nil
     @State private var selectedFrame: FrameType? = nil
     @State private var selectedMica: MicaType? = nil
@@ -257,58 +307,63 @@ struct LensPickerSheet: View {
     private var canGoBack: Bool { step != .category }
 
     private func goBack() {
-        switch step {
-        case .frameType:
-            step = .category
-        case .brandFrameDetails:
-            step = .frameType
-        case .micaType:
-            step = selectedFrame == .armazonDeMarca ? .brandFrameDetails : .frameType
-        case .transitionColor:
-            step = .micaType
-        case .thickness:
-            step = selectedMica == .transitions ? .transitionColor : .micaType
-        case .detail:
-            if selectedCategory == .soloArmazon {
+        isGoingForward = false
+        withAnimation(.easeInOut(duration: 0.26)) {
+            switch step {
+            case .frameType:
+                step = .category
+            case .brandFrameDetails:
+                step = .frameType
+            case .micaType:
                 step = selectedFrame == .armazonDeMarca ? .brandFrameDetails : .frameType
-            } else {
-                step = .thickness
+            case .transitionColor:
+                step = .micaType
+            case .thickness:
+                step = selectedMica == .transitions ? .transitionColor : .micaType
+            case .detail:
+                if selectedCategory == .soloArmazon {
+                    step = selectedFrame == .armazonDeMarca ? .brandFrameDetails : .frameType
+                } else {
+                    step = .thickness
+                }
+            default: break
             }
-        default: break
         }
     }
 
     private func advance() {
+        isGoingForward = true
         switch step {
         case .category:
-            // Siempre va primero al armazón
-            step = .frameType
+            withAnimation(.easeInOut(duration: 0.26)) { step = .frameType }
 
         case .frameType:
             guard let frame = selectedFrame else { return }
-            if frame == .armazonDeMarca {
-                step = .brandFrameDetails
-            } else if selectedCategory == .soloArmazon {
-                step = .detail
-            } else {
-                step = .micaType
+            withAnimation(.easeInOut(duration: 0.26)) {
+                if frame == .armazonDeMarca {
+                    step = .brandFrameDetails
+                } else if selectedCategory == .soloArmazon {
+                    step = .detail
+                } else {
+                    step = .micaType
+                }
             }
 
         case .brandFrameDetails:
-            if selectedCategory == .soloArmazon {
-                step = .detail
-            } else {
-                step = .micaType
+            withAnimation(.easeInOut(duration: 0.26)) {
+                step = selectedCategory == .soloArmazon ? .detail : .micaType
             }
 
         case .micaType:
-            step = selectedMica == .transitions ? .transitionColor : .thickness
+            withAnimation(.easeInOut(duration: 0.26)) {
+                step = selectedMica == .transitions ? .transitionColor : .thickness
+            }
 
         case .transitionColor:
-            step = .thickness
+            withAnimation(.easeInOut(duration: 0.26)) { step = .thickness }
 
         case .thickness:
-            step = .detail
+            withAnimation(.easeInOut(duration: 0.26)) { step = .detail }
 
         case .detail:
             confirmSelection()
@@ -385,15 +440,7 @@ struct LensPickerSheet: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                LinearGradient(
-                    colors: [
-                        BrandColors.primary.opacity(0.06),
-                        BrandColors.accent.opacity(0.04),
-                        Color.white
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                BrandColors.backgroundGradient
                 .ignoresSafeArea()
 
                 ScrollView {
@@ -416,6 +463,18 @@ struct LensPickerSheet: View {
                             case .detail:            detailStep
                             }
                         }
+                        .id(step)
+                        .transition(
+                            isGoingForward
+                            ? .asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .move(edge: .leading).combined(with: .opacity)
+                              )
+                            : .asymmetric(
+                                insertion: .move(edge: .leading).combined(with: .opacity),
+                                removal: .move(edge: .trailing).combined(with: .opacity)
+                              )
+                        )
                         .padding(.horizontal, 20)
 
                         Color.clear.frame(height: 90)
@@ -453,7 +512,7 @@ struct LensPickerSheet: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 14)
-                    .background(Color.white.opacity(0.95))
+                    .background(BrandColors.cardFill.opacity(0.97))
                 }
             }
             .navigationTitle(stepTitle)
@@ -473,6 +532,13 @@ struct LensPickerSheet: View {
 
     private var categoryStep: some View {
         VStack(spacing: 12) {
+            // Preview animado de la categoría seleccionada
+            if let cat = selectedCategory {
+                LensCategoryPreview(category: cat)
+                    .id(cat)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+
             ForEach(LensCategory.allCases, id: \.self) { cat in
                 OptionCard(
                     assetImage: cat.assetImage,
@@ -480,7 +546,9 @@ struct LensPickerSheet: View {
                     subtitle: cat.subtitle,
                     isSelected: selectedCategory == cat
                 ) {
-                    selectedCategory = cat
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.80)) {
+                        selectedCategory = cat
+                    }
                     selectedFrame = nil
                     selectedMica = nil
                     selectedColor = nil
@@ -526,7 +594,7 @@ struct LensPickerSheet: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white)
+                    .fill(BrandColors.cardFill)
                     .shadow(color: BrandColors.secondary.opacity(0.08), radius: 10, x: 0, y: 4)
             )
             .overlay(
@@ -547,7 +615,7 @@ struct LensPickerSheet: View {
                 .font(.system(size: 15))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(Color.black.opacity(0.04))
+                .background(BrandColors.fieldBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
@@ -557,6 +625,12 @@ struct LensPickerSheet: View {
         let cat = selectedCategory ?? .visionSencilla
         let baseRef = micaBasePrice(category: cat, mica: .transparente)
         return VStack(spacing: 12) {
+            LensAnimatedPreview(
+                mica: selectedMica ?? .transparente,
+                transitionColor: selectedColor
+            )
+            .id(selectedMica)
+
             ForEach(MicaType.allCases, id: \.self) { mica in
                 let price = micaBasePrice(category: cat, mica: mica)
                 let badge = priceBadge(base: baseRef, current: price)
@@ -569,7 +643,9 @@ struct LensPickerSheet: View {
                     badgeIsNeutral: neutral,
                     isSelected: selectedMica == mica
                 ) {
-                    selectedMica = mica
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
+                        selectedMica = mica
+                    }
                     selectedColor = nil
                     selectedThickness = nil
                 }
@@ -582,6 +658,12 @@ struct LensPickerSheet: View {
         let cat = selectedCategory ?? .visionSencilla
         let baseRef = micaPrice(category: cat, mica: .transitions, color: .blue, thickness: .delgado)
         return VStack(spacing: 12) {
+            LensAnimatedPreview(
+                mica: .transitions,
+                transitionColor: selectedColor ?? .blue
+            )
+            .id(selectedColor)
+
             ForEach(TransitionColor.allCases, id: \.self) { color in
                 let price = micaPrice(category: cat, mica: .transitions, color: color, thickness: .delgado)
                 let badge = priceBadge(base: baseRef, current: price)
@@ -594,7 +676,9 @@ struct LensPickerSheet: View {
                     badgeIsNeutral: neutral,
                     isSelected: selectedColor == color
                 ) {
-                    selectedColor = color
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
+                        selectedColor = color
+                    }
                 }
             }
         }
@@ -671,7 +755,7 @@ struct LensPickerSheet: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white)
+                    .fill(BrandColors.cardFill)
                     .shadow(color: BrandColors.secondary.opacity(0.08), radius: 10, x: 0, y: 4)
             )
             .overlay(
@@ -776,7 +860,7 @@ private struct OptionCard: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isSelected ? BrandColors.primary.opacity(0.06) : Color.white)
+                    .fill(isSelected ? BrandColors.primary.opacity(0.12) : BrandColors.cardFill)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -787,7 +871,439 @@ private struct OptionCard: View {
             )
             .shadow(color: BrandColors.secondary.opacity(isSelected ? 0.10 : 0.04), radius: 8, x: 0, y: 3)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BounceButtonStyle())
         .animation(.easeOut(duration: 0.18), value: isSelected)
+    }
+}
+
+// MARK: - Lens Animated Preview
+
+private struct LensAnimatedPreview: View {
+    let mica: MicaType
+    let transitionColor: TransitionColor?
+
+    // Dimensiones de la mica (forma lente óptica)
+    private let lensW: CGFloat = 150
+    private let lensH: CGFloat = 92
+
+    @State private var shimmerX: CGFloat = -160
+    @State private var blueGlow: CGFloat = 0.18
+    // 0 = interior (claro) · 100 = exterior (oscuro)
+    @State private var transitionValue: Double = 0
+
+    private var isOutdoor: Bool { transitionValue >= 50 }
+
+    var body: some View {
+        VStack(spacing: 12) {
+
+            // ── Mica en forma de lente ──────────────────────────────
+            ZStack {
+                // Base fill
+                LensShape()
+                    .fill(baseFill)
+
+                // Overlay de oscurecimiento para Transitions (opacidad = 0…1)
+                if mica == .transitions {
+                    LensShape()
+                        .fill(
+                            RadialGradient(
+                                colors: [transitionTint.opacity(0.85), transitionTint.opacity(0.45)],
+                                center: UnitPoint(x: 0.3, y: 0.25),
+                                startRadius: 4, endRadius: 60
+                            )
+                        )
+                        .opacity(transitionValue / 100)
+                        .animation(.easeInOut(duration: 0.18), value: transitionValue)
+                }
+
+                // Brillo especular (esquina superior izquierda)
+                Ellipse()
+                    .fill(Color.white.opacity(0.55))
+                    .frame(width: 36, height: 16)
+                    .offset(x: -30, y: -22)
+                    .blur(radius: 3)
+
+                // Borde de la mica
+                LensShape()
+                    .stroke(lensBorderColor, lineWidth: 2)
+                    .animation(.easeInOut(duration: 0.18), value: transitionValue)
+
+                // Transparente: shimmer sweep
+                if mica == .transparente {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear,               location: 0.35),
+                            .init(color: .white.opacity(0.75), location: 0.48),
+                            .init(color: .white.opacity(0.92), location: 0.50),
+                            .init(color: .white.opacity(0.75), location: 0.52),
+                            .init(color: .clear,               location: 0.65)
+                        ],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                    .frame(width: lensW * 1.4, height: lensH * 1.4)
+                    .rotationEffect(.degrees(20))
+                    .offset(x: shimmerX)
+                }
+
+                // Blue: glow pulsante
+                if mica == .blue {
+                    LensShape()
+                        .stroke(Color(red: 0.35, green: 0.65, blue: 1.0).opacity(blueGlow), lineWidth: 10)
+                        .blur(radius: 5)
+                }
+            }
+            .frame(width: lensW, height: lensH)
+            .clipShape(LensShape())
+            .shadow(color: lensBorderColor.opacity(0.35), radius: 12, x: 0, y: 5)
+
+            // ── Slider de oscurecimiento (solo Transitions) ─────────
+            if mica == .transitions {
+                transitionSlider
+                    .padding(.horizontal, 8)
+                    .padding(.top, 2)
+            }
+
+            // ── Caption ────────────────────────────────────────────
+            Text(previewCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(BrandColors.cardFill.opacity(0.88))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(BrandColors.accent.opacity(0.22), lineWidth: 1)
+                )
+        )
+        .shadow(color: BrandColors.secondary.opacity(0.07), radius: 12, x: 0, y: 5)
+        .onAppear { startAnimations() }
+    }
+
+    // MARK: - Slider control
+
+    private var transitionSlider: some View {
+        VStack(spacing: 6) {
+            // Etiquetas extremos
+            HStack {
+                Label("Interior", systemImage: "moon.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(BrandColors.secondary)
+                Spacer()
+                Text("\(Int(transitionValue))")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(BrandColors.accent)
+                Spacer()
+                Label("Exterior", systemImage: "sun.max.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.orange)
+            }
+
+            // Barra degradada claro → tint de la mica
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.90),
+                                transitionTint.opacity(0.95)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(height: 12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(transitionTint.opacity(0.30), lineWidth: 1)
+                    )
+
+                Slider(value: $transitionValue, in: 0...100, step: 1)
+                    .tint(transitionTint)
+            }
+
+            // Estado legible
+            Text(transitionValue < 15  ? "Interior · Clara" :
+                 transitionValue < 45  ? "Semiosccura"      :
+                 transitionValue < 75  ? "Oscureciendo"     : "Exterior · Oscura")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .animation(.none, value: transitionValue)
+        }
+    }
+
+    // MARK: - Computed
+
+    private var baseFill: some ShapeStyle {
+        RadialGradient(
+            colors: [
+                lensTint.opacity(mica == .transparente ? 0.18 : 0.55),
+                Color(white: 0.96).opacity(0.85)
+            ],
+            center: UnitPoint(x: 0.3, y: 0.25),
+            startRadius: 4, endRadius: 60
+        )
+    }
+
+    private var lensTint: Color {
+        switch mica {
+        case .transparente: return Color.white
+        case .blue:         return Color(red: 0.55, green: 0.78, blue: 1.0)
+        case .transitions:  return transitionTint
+        }
+    }
+
+    private var transitionTint: Color {
+        switch transitionColor {
+        case .blue:      return Color(red: 0.35, green: 0.60, blue: 0.95)
+        case .amber:     return Color(red: 0.90, green: 0.68, blue: 0.20)
+        case .rubi:      return Color(red: 0.85, green: 0.22, blue: 0.32)
+        case .esmeralda: return Color(red: 0.18, green: 0.72, blue: 0.48)
+        case nil:        return Color(red: 0.35, green: 0.60, blue: 0.95)
+        }
+    }
+
+    private var lensBorderColor: Color {
+        switch mica {
+        case .transparente: return BrandColors.accent.opacity(0.35)
+        case .blue:         return Color(red: 0.35, green: 0.65, blue: 1.0).opacity(0.50)
+        case .transitions:
+            let pct = transitionValue / 100
+            return transitionTint.opacity(0.30 + pct * 0.35)
+        }
+    }
+
+    private var previewCaption: String {
+        switch mica {
+        case .transparente: return "Mica clásica · Sin tratamiento de color"
+        case .blue:         return "Filtra hasta el 40% de luz azul-violeta"
+        case .transitions:  return "Desliza para simular la reacción al sol"
+        }
+    }
+
+    // MARK: - Animations
+
+    private func startAnimations() {
+        if mica == .transparente {
+            shimmerX = -160
+            withAnimation(.linear(duration: 1.8).repeatForever(autoreverses: false)) {
+                shimmerX = 160
+            }
+        }
+        if mica == .blue {
+            withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) {
+                blueGlow = 0.52
+            }
+        }
+    }
+}
+
+// MARK: - Lens Category Animated Preview
+
+private struct LensCategoryPreview: View {
+    let category: LensCategory
+
+    private let lensW: CGFloat = 150
+    private let lensH: CGFloat = 92
+
+    // Visión Sencilla — punto focal pulsante
+    @State private var focusPulse: CGFloat = 1.0
+    @State private var focusGlow: CGFloat  = 0.40
+
+    // Bifocales — brillo de la línea divisoria
+    @State private var lineGlow: CGFloat   = 0.30
+
+    // Progresivas — scanner de zona
+    @State private var scanOffset: CGFloat = -30
+    @State private var scanOpacity: Double = 0.0
+
+    // Solo Armazón — giro del gradiente de borde
+    @State private var borderPhase: CGFloat = 0
+
+    var body: some View {
+        VStack(spacing: 10) {
+            ZStack {
+                lensContent
+            }
+            .frame(width: lensW, height: lensH)
+            .clipShape(LensShape())
+            .shadow(color: BrandColors.accent.opacity(0.25), radius: 12, x: 0, y: 5)
+            .overlay(LensShape().stroke(BrandColors.accent.opacity(0.35), lineWidth: 2))
+
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(BrandColors.cardFill.opacity(0.88))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(BrandColors.accent.opacity(0.22), lineWidth: 1)
+                )
+        )
+        .shadow(color: BrandColors.secondary.opacity(0.07), radius: 12, x: 0, y: 5)
+        .onAppear { startAnimations() }
+    }
+
+    // MARK: - Content per category
+
+    @ViewBuilder
+    private var lensContent: some View {
+        switch category {
+
+        // ── Visión Sencilla ── base clara + punto focal pulsante central
+        case .visionSencilla:
+            // base
+            LensShape().fill(
+                RadialGradient(
+                    colors: [Color(red: 0.88, green: 0.95, blue: 1.0).opacity(0.85),
+                             Color.white.opacity(0.50)],
+                    center: .center, startRadius: 0, endRadius: 60
+                )
+            )
+            // anillo de glow
+            Circle()
+                .stroke(BrandColors.accent.opacity(focusGlow), lineWidth: 10)
+                .frame(width: 38 * focusPulse, height: 38 * focusPulse)
+                .blur(radius: 4)
+            // punto central
+            Circle()
+                .fill(BrandColors.primary.opacity(0.75))
+                .frame(width: 8, height: 8)
+                .scaleEffect(focusPulse)
+            // cruz sutil
+            Rectangle().fill(BrandColors.accent.opacity(0.20)).frame(width: 28, height: 1)
+            Rectangle().fill(BrandColors.accent.opacity(0.20)).frame(width: 1, height: 18)
+
+        // ── Bifocales ── dos zonas + línea divisoria animada
+        case .bifocales:
+            // zona superior (lejos) — azul muy suave
+            Rectangle()
+                .fill(Color(red: 0.80, green: 0.92, blue: 1.0).opacity(0.55))
+                .frame(height: lensH / 2)
+                .offset(y: -lensH / 4)
+            // zona inferior (cerca) — rosa muy suave
+            Rectangle()
+                .fill(BrandColors.soft.opacity(0.55))
+                .frame(height: lensH / 2)
+                .offset(y: lensH / 4)
+            // línea divisoria
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [BrandColors.primary.opacity(lineGlow),
+                                 BrandColors.accent.opacity(lineGlow * 0.8),
+                                 BrandColors.primary.opacity(lineGlow)],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                )
+                .frame(height: 2)
+            // etiquetas de zona
+            VStack {
+                Text("L").font(.system(size: 9, weight: .bold)).foregroundStyle(Color(red: 0.35, green: 0.60, blue: 0.90).opacity(0.65))
+                Spacer()
+                Text("C").font(.system(size: 9, weight: .bold)).foregroundStyle(BrandColors.primary.opacity(0.55))
+            }
+            .padding(.vertical, 6)
+
+        // ── Progresivas ── 3 zonas con scanner
+        case .progresivas:
+            // Fondo de 3 zonas
+            LensShape().fill(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.76, green: 0.90, blue: 1.0).opacity(0.80),  // lejos  (azul)
+                        Color(red: 0.88, green: 0.80, blue: 1.0).opacity(0.65),  // intermedio (lila)
+                        BrandColors.soft.opacity(0.75)                            // cerca  (rosa)
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            )
+            // scanner horizontal animado
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [.clear, Color.white.opacity(0.70), .clear],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                )
+                .frame(height: 14)
+                .offset(y: scanOffset)
+                .opacity(scanOpacity)
+            // etiquetas de zona
+            VStack {
+                Text("∞").font(.system(size: 9, weight: .semibold)).foregroundStyle(Color(red: 0.30, green: 0.55, blue: 0.85).opacity(0.70))
+                Spacer()
+                Text("60°").font(.system(size: 9, weight: .semibold)).foregroundStyle(Color(red: 0.55, green: 0.35, blue: 0.85).opacity(0.60))
+                Spacer()
+                Text("↙").font(.system(size: 9, weight: .semibold)).foregroundStyle(BrandColors.primary.opacity(0.60))
+            }
+            .padding(.vertical, 6)
+
+        // ── Solo Armazón ── solo el contorno
+        case .soloArmazon:
+            // interior transparente con reflejo
+            LensShape().fill(Color(red: 0.96, green: 0.92, blue: 0.98).opacity(0.30))
+            // contorno con glow
+            LensShape()
+                .stroke(BrandColors.secondary.opacity(0.55 + 0.2 * borderPhase), lineWidth: 5)
+                .blur(radius: 2)
+            LensShape()
+                .stroke(BrandColors.strokeGradient, lineWidth: 3)
+            // texto
+            Text("Armazón")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(BrandColors.secondary.opacity(0.60))
+        }
+    }
+
+    // MARK: - Captions
+
+    private var caption: String {
+        switch category {
+        case .visionSencilla: return "Un solo punto focal · Lejos o cerca"
+        case .bifocales:      return "Zona superior (lejos) + zona inferior (cerca)"
+        case .progresivas:    return "Transición suave · Lejos → Intermedio → Cerca"
+        case .soloArmazon:    return "Solo el armazón · Sin mica graduada"
+        }
+    }
+
+    // MARK: - Animations
+
+    private func startAnimations() {
+        switch category {
+        case .visionSencilla:
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                focusPulse = 1.30
+                focusGlow  = 0.72
+            }
+
+        case .bifocales:
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                lineGlow = 0.80
+            }
+
+        case .progresivas:
+            scanOffset  = -lensH / 2 + 10
+            scanOpacity = 0.0
+            withAnimation(.linear(duration: 2.2).repeatForever(autoreverses: false)) {
+                scanOffset  = lensH / 2 - 10
+                scanOpacity = 0.85
+            }
+
+        case .soloArmazon:
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                borderPhase = 1.0
+            }
+        }
     }
 }

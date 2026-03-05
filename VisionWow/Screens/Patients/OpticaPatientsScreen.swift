@@ -20,6 +20,7 @@ struct OpticaPatientsScreen: View {
     @State private var selectedEncounterForDelete: Encounter? = nil
     @State private var showDeleteConfirm1 = false
     @State private var showDeleteConfirm2 = false
+    @State private var deleteError: String? = nil
 
     private var opticaCompany: Company {
         WalkInCompanyStore.ensure(modelContext: modelContext)
@@ -89,10 +90,12 @@ struct OpticaPatientsScreen: View {
                         .font(.system(size: 30, weight: .semibold, design: .rounded))
                         .foregroundStyle(BrandColors.secondary)
                         .padding(.top, 6)
+                        .entrance(delay: 0.05)
 
                     // ─── Buscador ───
                     searchField
                         .padding(.horizontal, 16)
+                        .entrance(delay: 0.10)
 
                     // ─── Resultados de búsqueda ───
                     if isSearching {
@@ -137,7 +140,7 @@ struct OpticaPatientsScreen: View {
                     } else {
                         ScrollView {
                             LazyVStack(spacing: 10) {
-                                ForEach(opticaEncounters) { e in
+                                ForEach(Array(opticaEncounters.enumerated()), id: \.element.id) { index, e in
                                     NavigationLink {
                                         EditEncounterWizardScreen(company: opticaCompany, encounter: e)
                                     } label: {
@@ -145,6 +148,7 @@ struct OpticaPatientsScreen: View {
                                             .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
+                                    .entrance(delay: 0.10 + Double(index) * 0.06)
                                 }
                             }
                             .padding(.top, 10)
@@ -156,11 +160,13 @@ struct OpticaPatientsScreen: View {
 
                     // CTA Reporte de ventas (óptica, con filtro de fechas)
                     NavigationLink {
-                        SalesReportScreen(
-                            companyName: WalkInCompanyStore.name,
-                            encounters: opticaEncounters,
-                            showDateFilter: true
-                        )
+                        ReportAuthGate {
+                            SalesReportScreen(
+                                companyName: WalkInCompanyStore.name,
+                                encounters: opticaEncounters,
+                                showDateFilter: true
+                            )
+                        }
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "chart.bar.doc.horizontal")
@@ -185,6 +191,7 @@ struct OpticaPatientsScreen: View {
                     .buttonStyle(.plain)
                     .frame(maxWidth: 340)
                     .padding(.horizontal, 16)
+                    .entrance(delay: 0.20)
 
                     // CTA Agregar paciente
                     NavigationLink {
@@ -209,6 +216,7 @@ struct OpticaPatientsScreen: View {
                     .buttonStyle(.plain)
                     .frame(maxWidth: 340)
                     .padding(.horizontal, 16)
+                    .entrance(delay: 0.26)
 
                     SecondaryButton(title: "Volver") {
                         dismiss()
@@ -216,6 +224,7 @@ struct OpticaPatientsScreen: View {
                     .frame(maxWidth: 340)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 18)
+                    .entrance(delay: 0.32)
                 }
                 .padding(.top, 14)
             }
@@ -223,6 +232,16 @@ struct OpticaPatientsScreen: View {
                 _ = WalkInCompanyStore.ensure(modelContext: modelContext)
             }
             .navigationBarTitleDisplayMode(.inline)
+
+            // Error al eliminar
+            .alert("No se pudo eliminar", isPresented: Binding(
+                get: { deleteError != nil },
+                set: { if !$0 { deleteError = nil } }
+            )) {
+                Button("Aceptar", role: .cancel) { deleteError = nil }
+            } message: {
+                Text(deleteError ?? "")
+            }
 
             // 🔴 ALERTS DE ELIMINACIÓN
             .alert("Eliminar paciente", isPresented: $showDeleteConfirm1) {
@@ -353,7 +372,7 @@ struct OpticaPatientsScreen: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(patientDisplayName(encounter))
+                Text(encounter.displayName)
                     .font(.headline)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
@@ -379,9 +398,9 @@ struct OpticaPatientsScreen: View {
                 }
 
                 HStack(spacing: 10) {
-                    Label(paymentSummary(encounter), systemImage: paymentIcon(encounter))
+                    Label(encounter.paymentSummary, systemImage: encounter.paymentIconName)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(paymentColor(encounter))
+                        .foregroundStyle(encounter.paymentColor)
                         .lineLimit(1)
 
                     Spacer(minLength: 0)
@@ -417,45 +436,6 @@ struct OpticaPatientsScreen: View {
         .contentShape(Rectangle())
     }
 
-    // MARK: - Helpers
-
-    private func patientDisplayName(_ e: Encounter) -> String {
-        let first = (e.patient?.firstName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let last  = (e.patient?.lastName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let full = [first, last].filter { !$0.isEmpty }.joined(separator: " ")
-        return full.isEmpty ? "Paciente" : full
-    }
-
-    private func paymentSummary(_ e: Encounter) -> String {
-        let status = e.payStatus.trimmingCharacters(in: .whitespacesAndNewlines)
-        let total  = e.payTotal.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if status.isEmpty && total.isEmpty { return "Sin compra" }
-        if !status.isEmpty && !total.isEmpty { return "\(status) • $\(total)" }
-        if !status.isEmpty { return status }
-        return "Total • $\(total)"
-    }
-
-    private func paymentIcon(_ e: Encounter) -> String {
-        let status = e.payStatus.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if status.contains("pag") { return "checkmark.seal.fill" }
-        if status.contains("pend") { return "clock.fill" }
-        if status.contains("cort") { return "gift.fill" }
-
-        let total = e.payTotal.trimmingCharacters(in: .whitespacesAndNewlines)
-        return total.isEmpty ? "cart.badge.minus" : "cart.fill"
-    }
-
-    private func paymentColor(_ e: Encounter) -> Color {
-        let status = e.payStatus.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if status.contains("pag") { return BrandColors.success }
-        if status.contains("pend") { return BrandColors.warning }
-        if status.contains("cort") { return BrandColors.info }
-
-        let total = e.payTotal.trimmingCharacters(in: .whitespacesAndNewlines)
-        return total.isEmpty ? .secondary : BrandColors.secondary
-    }
-
     // MARK: - Actions
 
     private func deleteEncounter(_ e: Encounter) {
@@ -463,7 +443,7 @@ struct OpticaPatientsScreen: View {
         do {
             try modelContext.save()
         } catch {
-            print("ERROR deleting encounter:", error)
+            deleteError = "No se pudo eliminar el paciente. Inténtalo de nuevo.\n\n\(error.localizedDescription)"
         }
     }
 }

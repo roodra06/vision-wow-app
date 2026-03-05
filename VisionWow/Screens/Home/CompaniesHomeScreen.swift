@@ -56,11 +56,13 @@ struct CompaniesHomeScreen: View {
 
                     VStack(spacing: 14) {
                         heroHeader(height: geo.size.height * 0.48)
+                            .entrance(delay: 0.06)
 
                         if visibleCompanies.isEmpty {
                             emptyState
                                 .padding(.horizontal, 16)
                                 .padding(.top, 6)
+                                .entrance(delay: 0.18)
                         } else {
                             listState
                         }
@@ -218,7 +220,7 @@ struct CompaniesHomeScreen: View {
         VStack(spacing: 10) {
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(visibleCompanies) { c in
+                    ForEach(Array(visibleCompanies.enumerated()), id: \.element.id) { index, c in
                         Button {
                             navPath.append(c.id)
                         } label: {
@@ -233,6 +235,7 @@ struct CompaniesHomeScreen: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.horizontal, 16)
+                        .entrance(delay: 0.12 + Double(index) * 0.07)
                     }
                 }
                 .padding(.vertical, 10)

@@ -50,11 +50,6 @@ final class Encounter {
     // AGUDEZA VISUAL
     // =========================================================
 
-    // (Compatibilidad / legado) Cercana simple (si ya la usas en PDF u otro lado)
-    var nearVaOD: String?
-    var nearVaOS: String?
-    var nearVaOU: String?
-
     // Lejana (S/C y C/C) OD / OI / AO
     var vaOdSc: String
     var vaOsSc: String
@@ -154,11 +149,6 @@ final class Encounter {
 
         self.ishihara = ""
         self.campimetry = ""
-
-        // (Compatibilidad / legado) Cercana simple
-        self.nearVaOD = nil
-        self.nearVaOS = nil
-        self.nearVaOU = nil
 
         // Lejana
         self.vaOdSc = ""

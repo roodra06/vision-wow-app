@@ -23,6 +23,7 @@ struct PrimaryButton: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
+        .buttonStyle(BounceButtonStyle())
     }
 }
 
@@ -46,6 +47,7 @@ struct SecondaryButton: View {
                         .stroke(Color.black.opacity(0.10), lineWidth: 1)
                 )
         }
+        .buttonStyle(BounceButtonStyle())
     }
 }
 

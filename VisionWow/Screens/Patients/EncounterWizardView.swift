@@ -39,10 +39,6 @@ struct EncounterWizardView: View {
         Step.allCases[min(stepIndex, Step.allCases.count - 1)]
     }
 
-    private var isLastStep: Bool {
-        stepIndex == Step.allCases.count - 1
-    }
-
     private var isOpticaFlow: Bool {
         startAt == .personalData
     }
@@ -153,11 +149,6 @@ struct EncounterWizardView: View {
     private func next() {
         errors = validate(step: currentStep)
         guard errors.isEmpty else { return }
-
-        if isLastStep {
-            onFinish(encounter)
-            return
-        }
 
         // ✅ Interceptar PersonalData -> (handoff) -> Antecedents
         if currentStep == .personalData {
