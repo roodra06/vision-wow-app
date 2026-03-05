@@ -47,9 +47,6 @@ enum PDFAntecedents {
             idx += cols
         }
 
-        yy += 4
-        yy = PDFRows.drawLongLine(label: "Observaciones", value: encounter.payNotes ?? "", x: x, y: yy, w: w) + 10
-
         return yy
     }
 

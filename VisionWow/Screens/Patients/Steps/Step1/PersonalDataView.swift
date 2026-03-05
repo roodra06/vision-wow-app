@@ -12,9 +12,8 @@ struct PersonalDataView: View {
     @Bindable var encounter: Encounter
     let errors: [String: String]
 
-    // Paso 2/4
-    private let stepIndex = 2
-    private let totalSteps = 4
+    var stepNumber: Int = 2
+    var totalSteps: Int = 4
 
     // ✅ Edad calculada y forzada a refrescar
     @State private var ageDisplay: String = ""
@@ -109,14 +108,14 @@ struct PersonalDataView: View {
 
             VStack(spacing: 6) {
                 HStack {
-                    Text("Paso \(stepIndex) de \(totalSteps)")
+                    Text("Paso \(stepNumber) de \(totalSteps)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
 
                 ProgressPillBar(
-                    progress: CGFloat(stepIndex) / CGFloat(totalSteps),
+                    progress: CGFloat(stepNumber) / CGFloat(totalSteps),
                     height: 10
                 )
             }

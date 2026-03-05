@@ -80,11 +80,11 @@ struct FlowCoordinator: View {
         case 1:
             IntakeStep1Screen(encounter: encounter, errors: errors)
         case 2:
-            AntecedentsStep2Screen(encounter: encounter)
+            AntecedentsStep2Screen(encounter: encounter, stepNumber: 2, totalSteps: 4)
         case 3:
-            ExamStep3Screen(encounter: encounter, errors: errors)
+            ExamStep3Screen(encounter: encounter, errors: errors, stepNumber: 3, totalSteps: 4)
         case 4:
-            PaymentStep4Screen(encounter: encounter, errors: errors)
+            PaymentStep4Screen(encounter: encounter, errors: errors, stepNumber: 4, totalSteps: 4)
         default:
             IntakeStep1Screen(encounter: encounter, errors: errors)
         }
@@ -129,14 +129,21 @@ struct FlowCoordinator: View {
     }
 
     private func generatePDF() {
-        // Valida todo lo esencial antes de PDF
-        let map = validate(step: 1)
-            .merging(validate(step: 3), uniquingKeysWith: { $1 })
-            .merging(validate(step: 4), uniquingKeysWith: { $1 })
+        let step1Errs = validate(step: 1)
+        let step3Errs = validate(step: 3)
+        let step4Errs = validate(step: 4)
 
-        errors = map
-        if !map.isEmpty {
-            step = 1
+        let allErrs = step1Errs
+            .merging(step3Errs, uniquingKeysWith: { $1 })
+            .merging(step4Errs, uniquingKeysWith: { $1 })
+
+        errors = allErrs
+
+        if !allErrs.isEmpty {
+            // Navega al primer paso que tiene errores
+            if !step1Errs.isEmpty { step = 1 }
+            else if !step3Errs.isEmpty { step = 3 }
+            else { step = 4 }
             return
         }
 
@@ -146,9 +153,6 @@ struct FlowCoordinator: View {
             let output = try PDFService.generate(encounter: encounter)
             lastGeneratedPDFURL = output.url
             showPDFPreview = true
-
-            // Share Sheet (WhatsApp)
-            ShareService.share(items: [output.url])
         } catch {
             errors = ["pdf": error.localizedDescription]
         }

@@ -51,6 +51,9 @@ struct NewEncounterWizardScreen: View {
         encounter.company = company
         encounter.companyName = company.name
 
+        if let patient = encounter.patient {
+            modelContext.insert(patient)
+        }
         modelContext.insert(encounter)
         do {
             try modelContext.save()

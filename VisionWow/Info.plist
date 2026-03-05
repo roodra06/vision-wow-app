@@ -2,12 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>Privacy - Camera Usage Description
-Privacy - Camera Usage Description
-Privacy - Camera Usage Description
-Privacy - Camera Usage Description
-</key>
-	<string>Vision Wow necesita acceso a la cámara para tomar la foto de perfil del paciente.
-</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Vision Wow necesita acceso a la cámara para tomar la foto de perfil del paciente y grabar video de seguridad durante la firma.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Se requiere acceso al micrófono durante la grabación de video de firma del paciente.</string>
 </dict>
 </plist>

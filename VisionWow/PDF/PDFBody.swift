@@ -19,6 +19,18 @@ enum PDFBody {
 
         var yy = y
 
+        // Garantía badge
+        if encounter.isGuarantee {
+            let reason = encounter.guaranteeReason ?? ""
+            let text = reason.isEmpty ? "GARANTÍA" : "GARANTÍA — \(reason)"
+            PDFDraw.drawText(text,
+                             in: CGRect(x: x, y: yy, width: w, height: 18),
+                             font: .systemFont(ofSize: 11, weight: .bold),
+                             color: UIColor.systemRed,
+                             alignment: .center)
+            yy += 22
+        }
+
         yy = PDFSections.drawSectionTitle("HISTORIA CLÍNICA", x: x, y: yy, w: w)
         yy += 6
 

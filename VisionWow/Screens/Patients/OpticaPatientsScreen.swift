@@ -13,6 +13,9 @@ struct OpticaPatientsScreen: View {
 
     @Query(sort: \Encounter.createdAt, order: .reverse) private var encounters: [Encounter]
 
+    // Buscador
+    @State private var searchText: String = ""
+
     // 🔴 Eliminación con doble confirmación
     @State private var selectedEncounterForDelete: Encounter? = nil
     @State private var showDeleteConfirm1 = false
@@ -24,6 +27,36 @@ struct OpticaPatientsScreen: View {
 
     private var opticaEncounters: [Encounter] {
         encounters.filter { $0.company?.name == WalkInCompanyStore.name }
+    }
+
+    // Pacientes únicos que coinciden con el buscador (para historial)
+    private var filteredPatients: [(patient: Patient, latestEncounter: Encounter)] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return [] }
+        var seen = Set<UUID>()
+        var result: [(patient: Patient, latestEncounter: Encounter)] = []
+        for enc in opticaEncounters {
+            guard let pat = enc.patient else { continue }
+            guard !seen.contains(pat.id) else { continue }
+            let name = [pat.firstName, pat.lastName]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+                .lowercased()
+            if name.contains(query) {
+                seen.insert(pat.id)
+                result.append((patient: pat, latestEncounter: enc))
+            }
+        }
+        return result.sorted { a, b in
+            let nameA = a.patient.firstName + a.patient.lastName
+            let nameB = b.patient.firstName + b.patient.lastName
+            return nameA < nameB
+        }
+    }
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -57,7 +90,42 @@ struct OpticaPatientsScreen: View {
                         .foregroundStyle(BrandColors.secondary)
                         .padding(.top, 6)
 
-                    if opticaEncounters.isEmpty {
+                    // ─── Buscador ───
+                    searchField
+                        .padding(.horizontal, 16)
+
+                    // ─── Resultados de búsqueda ───
+                    if isSearching {
+                        if filteredPatients.isEmpty {
+                            VStack(spacing: 6) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(.secondary)
+                                Text("Sin resultados para \"\(searchText)\"")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.top, 10)
+                        } else {
+                            ScrollView {
+                                LazyVStack(spacing: 10) {
+                                    ForEach(filteredPatients, id: \.patient.id) { item in
+                                        NavigationLink {
+                                            PatientHistoryScreen(patient: item.patient, opticaCompany: opticaCompany)
+                                        } label: {
+                                            searchResultCard(item: item)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.top, 4)
+                                .padding(.horizontal, 16)
+                            }
+                        }
+
+                    // ─── Lista regular (flujo original) ───
+                    } else if opticaEncounters.isEmpty {
                         VStack(spacing: 8) {
                             Text("Aún no hay pacientes externos.")
                                 .foregroundStyle(.secondary)
@@ -71,7 +139,6 @@ struct OpticaPatientsScreen: View {
                             LazyVStack(spacing: 10) {
                                 ForEach(opticaEncounters) { e in
                                     NavigationLink {
-                                        // ✅ Editar paciente
                                         EditEncounterWizardScreen(company: opticaCompany, encounter: e)
                                     } label: {
                                         opticaPatientCard(encounter: e)
@@ -86,6 +153,38 @@ struct OpticaPatientsScreen: View {
                     }
 
                     Spacer()
+
+                    // CTA Reporte de ventas (óptica, con filtro de fechas)
+                    NavigationLink {
+                        SalesReportScreen(
+                            companyName: WalkInCompanyStore.name,
+                            encounters: opticaEncounters,
+                            showDateFilter: true
+                        )
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "chart.bar.doc.horizontal")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Reporte de ventas")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundStyle(BrandColors.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .padding(.horizontal, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.white.opacity(0.88))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(BrandColors.secondary.opacity(0.20), lineWidth: 1)
+                                )
+                        )
+                        .shadow(color: BrandColors.secondary.opacity(0.08), radius: 10, x: 0, y: 6)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: 340)
+                    .padding(.horizontal, 16)
 
                     // CTA Agregar paciente
                     NavigationLink {
@@ -144,6 +243,98 @@ struct OpticaPatientsScreen: View {
                 Text("¿Eliminar definitivamente este paciente?")
             }
         }
+    }
+
+    // MARK: - Search Field
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            TextField("Buscar paciente por nombre...", text: $searchText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.words)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.white.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(BrandColors.accent.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: BrandColors.secondary.opacity(0.06), radius: 8, x: 0, y: 4)
+    }
+
+    // MARK: - Search Result Card
+
+    private func searchResultCard(item: (patient: Patient, latestEncounter: Encounter)) -> some View {
+        let pat = item.patient
+        let enc = item.latestEncounter
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(BrandColors.primary.opacity(0.12))
+                    .frame(width: 44, height: 44)
+                if let data = pat.profileImageData, let img = UIImage(data: data) {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 40, height: 40)
+                        .clipShape(Circle())
+                } else {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(BrandColors.secondary.opacity(0.8))
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                let fullName = [pat.firstName, pat.lastName]
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+                Text(fullName.isEmpty ? "Paciente" : fullName)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                let visits = pat.encounters.filter { $0.company?.name == WalkInCompanyStore.name }.count
+                Label("\(visits) visita\(visits == 1 ? "" : "s") · Última: \(DateUtils.formatShort(enc.createdAt))",
+                      systemImage: "clock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(BrandColors.accent.opacity(0.6))
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.86))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(BrandColors.primary.opacity(0.18), lineWidth: 1)
+                )
+                .shadow(color: BrandColors.secondary.opacity(0.07), radius: 14, x: 0, y: 8)
+        )
     }
 
     // MARK: - Card

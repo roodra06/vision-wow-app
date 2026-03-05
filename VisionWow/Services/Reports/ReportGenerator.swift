@@ -252,7 +252,7 @@ struct ReportGenerator {
                     let barRect = CGRect(x: barX, y: yRow + 3, width: barW, height: rowH - 6)
 
                     let yesW = barRect.width * (CGFloat(yesCount) / CGFloat(safeTotal))
-                    let noW  = barRect.width - yesW
+                    _ = barRect.width - yesW
 
                     let cg = ctx.cgContext
                     cg.saveGState()

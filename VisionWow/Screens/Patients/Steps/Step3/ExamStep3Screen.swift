@@ -5,9 +5,21 @@ struct ExamStep3Screen: View {
     @Bindable var encounter: Encounter
     let errors: [String: String]
 
-    // Paso 4/4
-    private let stepIndex = 4
-    private let totalSteps = 4
+    @State private var showLensPicker = false
+
+    var stepNumber: Int = 4
+    var totalSteps: Int = 4
+
+    private static let diagnosisSuggestions: [String] = [
+        "Miopía",
+        "Hipermetropía",
+        "Astigmatismo",
+        "Presbicia",
+        "Miopía + Astigmatismo",
+        "Hipermetropía + Astigmatismo",
+        "Sin corrección necesaria",
+        "Ambliopía"
+    ]
 
     private var patientIdText: String {
         let raw = String(describing: encounter.id)
@@ -26,6 +38,10 @@ struct ExamStep3Screen: View {
         return UIImage(data: data)
     }
 
+    private var todayFormatted: String {
+        DateUtils.formatShort(Date())
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
@@ -36,6 +52,13 @@ struct ExamStep3Screen: View {
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 28)
+        }
+        .onAppear {
+            // Fecha de consulta bloqueada = hoy
+            encounter.followUpDate = Date()
+        }
+        .sheet(isPresented: $showLensPicker) {
+            LensPickerSheet(lensType: $encounter.lensType, lensCost: $encounter.lensCost) { }
         }
     }
 
@@ -93,14 +116,14 @@ struct ExamStep3Screen: View {
 
             VStack(spacing: 6) {
                 HStack {
-                    Text("Paso \(stepIndex) de \(totalSteps)")
+                    Text("Paso \(stepNumber) de \(totalSteps)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
 
                 ProgressPillBar(
-                    progress: CGFloat(stepIndex) / CGFloat(totalSteps),
+                    progress: CGFloat(stepNumber) / CGFloat(totalSteps),
                     height: 10
                 )
             }
@@ -178,7 +201,7 @@ struct ExamStep3Screen: View {
             Divider().opacity(0.35)
 
             // =========================================================
-            // 1) AGUDEZA VISUAL CERCANA
+            // 2) AGUDEZA VISUAL CERCANA
             // =========================================================
             sectionHeader(icon: "text.magnifyingglass", title: "Agudeza visual (cercana)")
 
@@ -209,7 +232,7 @@ struct ExamStep3Screen: View {
             Divider().opacity(0.35)
 
             // =========================================================
-            // 2) REFRACCIÓN
+            // 3) REFRACCIÓN
             // =========================================================
             sectionHeader(icon: "scope", title: "Refracción")
 
@@ -225,7 +248,6 @@ struct ExamStep3Screen: View {
                 FieldRow("AXIS", required: true, error: errors["rxOdAxis"]) {
                     iconTextField(systemName: "dial.high.fill", text: $encounter.rxOdAxis, isError: errors["rxOdAxis"] != nil)
                 }
-                // ✅ 3) ADD NO obligatorio
                 FieldRow("ADD", required: false, error: errors["rxOdAdd"]) {
                     iconTextField(systemName: "plus.circle.fill", text: $encounter.rxOdAdd, isError: errors["rxOdAdd"] != nil)
                 }
@@ -243,14 +265,12 @@ struct ExamStep3Screen: View {
                 FieldRow("AXIS", required: true, error: errors["rxOsAxis"]) {
                     iconTextField(systemName: "dial.high.fill", text: $encounter.rxOsAxis, isError: errors["rxOsAxis"] != nil)
                 }
-                // ✅ 3) ADD NO obligatorio
                 FieldRow("ADD", required: false, error: errors["rxOsAdd"]) {
                     iconTextField(systemName: "plus.circle.fill", text: $encounter.rxOsAdd, isError: errors["rxOsAdd"] != nil)
                 }
             }
 
             HStack(spacing: 12) {
-                // ✅ 2) DIP (no DP) + corregimos key para que coincida con validate: "dip"
                 FieldRow("DIP", required: true, error: errors["dip"]) {
                     iconTextField(systemName: "ruler.fill", text: $encounter.dip, isError: errors["dip"] != nil)
                 }
@@ -259,25 +279,49 @@ struct ExamStep3Screen: View {
 
             Divider().opacity(0.35)
 
+            // =========================================================
+            // 4) RECOMENDACIÓN
+            // =========================================================
             sectionHeader(icon: "sparkles", title: "Recomendación")
 
-            HStack(spacing: 12) {
-                FieldRow("Tipo de lente", required: true, error: errors["lensType"]) {
-                    iconTextField(systemName: "eyeglasses", text: $encounter.lensType, isError: errors["lensType"] != nil)
-                }
-                FieldRow("Uso", required: true, error: errors["usage"]) {
-                    iconTextField(systemName: "person.fill.checkmark", text: $encounter.usage, isError: errors["usage"] != nil)
+            // Tipo de lente — botón que abre el wizard
+            FieldRow("Tipo de lente", required: true, error: errors["lensType"]) {
+                lensTypeButton
+            }
+
+            FieldRow("Uso", required: true, error: errors["usage"]) {
+                iconTextField(systemName: "person.fill.checkmark", text: $encounter.usage, isError: errors["usage"] != nil)
+            }
+
+            Divider().opacity(0.35)
+
+            // =========================================================
+            // 5) DIAGNÓSTICO
+            // =========================================================
+            sectionHeader(icon: "stethoscope", title: "Diagnóstico")
+
+            FieldRow("Diagnóstico del optometrista", required: false, error: nil) {
+                HStack(spacing: 10) {
+                    Image(systemName: "stethoscope")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    TextField("Ej. Miopía, Astigmatismo...", text: $encounter.diagnostico)
+                        .visionTextField(isError: false)
+                        .textInputAutocapitalization(.sentences)
                 }
             }
 
-            FieldRow("Fecha de seguimiento", required: true, error: errors["followUpDate"]) {
-                dateField(
-                    selection: Binding(
-                        get: { encounter.followUpDate ?? Date() },
-                        set: { encounter.followUpDate = $0 }
-                    ),
-                    isError: errors["followUpDate"] != nil
-                )
+            if encounter.diagnostico.isEmpty {
+                diagnosisSuggestionsView
+            }
+
+            Divider().opacity(0.35)
+
+            // =========================================================
+            // 6) FECHA DE CONSULTA (bloqueada a hoy)
+            // =========================================================
+            FieldRow("Fecha de consulta", required: true, error: nil) {
+                lockedDateField
             }
         }
         .padding(16)
@@ -289,6 +333,117 @@ struct ExamStep3Screen: View {
                         .stroke(BrandColors.accent.opacity(0.16), lineWidth: 1)
                 )
                 .shadow(color: BrandColors.secondary.opacity(0.06), radius: 14, x: 0, y: 8)
+        )
+    }
+
+    // MARK: - Lens type button
+
+    private var lensTypeButton: some View {
+        Button {
+            showLensPicker = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "eyeglasses")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(encounter.lensType.isEmpty ? Color.secondary : BrandColors.secondary)
+
+                if encounter.lensType.isEmpty {
+                    Text("Seleccionar tipo de lente...")
+                        .foregroundStyle(Color.secondary.opacity(0.7))
+                        .font(.system(size: 15))
+                } else {
+                    Text(encounter.lensType)
+                        .foregroundStyle(BrandColors.secondary)
+                        .font(.system(size: 14, weight: .medium))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer(minLength: 4)
+
+                Image(systemName: encounter.lensType.isEmpty ? "chevron.right" : "pencil.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(encounter.lensType.isEmpty ? Color.secondary.opacity(0.5) : BrandColors.primary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.black.opacity(0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(
+                        errors["lensType"] != nil
+                            ? BrandColors.danger.opacity(0.90)
+                            : (encounter.lensType.isEmpty ? BrandColors.accent.opacity(0.12) : BrandColors.primary.opacity(0.30)),
+                        lineWidth: errors["lensType"] != nil || !encounter.lensType.isEmpty ? 1.5 : 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Diagnosis suggestions
+
+    private var diagnosisSuggestionsView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Sugerencias:")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            FlowWrap(Self.diagnosisSuggestions) { suggestion in
+                Button {
+                    encounter.diagnostico = suggestion
+                } label: {
+                    Text(suggestion)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(BrandColors.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(BrandColors.soft.opacity(0.75))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(BrandColors.accent.opacity(0.35), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(minHeight: 72)
+        }
+    }
+
+    // MARK: - Locked date field
+
+    private var lockedDateField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "calendar.badge.checkmark")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(BrandColors.primary.opacity(0.75))
+
+            Text(todayFormatted)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            Text("Hoy")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BrandColors.primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(BrandColors.primary.opacity(0.10))
+                .clipShape(Capsule())
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(BrandColors.primary.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(BrandColors.primary.opacity(0.18), lineWidth: 1)
         )
     }
 
@@ -340,27 +495,5 @@ struct ExamStep3Screen: View {
                 .visionTextField(isError: isError)
                 .textInputAutocapitalization(.never)
         }
-    }
-
-    private func dateField(selection: Binding<Date>, isError: Bool) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "calendar")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            DatePicker("", selection: selection, displayedComponents: .date)
-                .labelsHidden()
-                .datePickerStyle(.compact)
-
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.black.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(isError ? BrandColors.danger.opacity(0.90) : BrandColors.accent.opacity(0.12), lineWidth: 1)
-        )
     }
 }

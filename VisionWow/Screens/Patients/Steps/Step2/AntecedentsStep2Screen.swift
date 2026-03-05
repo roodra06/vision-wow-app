@@ -13,9 +13,8 @@ struct AntecedentsStep2Screen: View {
 
     @State private var model: Antecedents = .defaults()
 
-    // Paso 3/4 (tus steps: 1 Historia, 2 Datos, 3 Antecedentes, 4 Examen)
-    private let stepIndex = 3
-    private let totalSteps = 4
+    var stepNumber: Int = 3
+    var totalSteps: Int = 4
 
     private var patientIdText: String {
         let raw = String(describing: encounter.id)
@@ -106,14 +105,14 @@ struct AntecedentsStep2Screen: View {
 
             VStack(spacing: 6) {
                 HStack {
-                    Text("Paso \(stepIndex) de \(totalSteps)")
+                    Text("Paso \(stepNumber) de \(totalSteps)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
 
                 ProgressPillBar(
-                    progress: CGFloat(stepIndex) / CGFloat(totalSteps),
+                    progress: CGFloat(stepNumber) / CGFloat(totalSteps),
                     height: 10
                 )
             }

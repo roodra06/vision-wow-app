@@ -26,7 +26,10 @@ struct EditEncounterWizardScreen: View {
             EncounterWizardView(
                 encounter: encounter,
                 company: company,
-                onCancel: { dismiss() },
+                onCancel: {
+                    modelContext.rollback()
+                    dismiss()
+                },
                 onFinish: { _ in
                     save()
                 },

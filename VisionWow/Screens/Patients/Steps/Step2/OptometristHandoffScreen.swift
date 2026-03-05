@@ -8,6 +8,12 @@ struct OptometristHandoffScreen: View {
     @State private var localOptometristName: String = ""
     @State private var animate = false
 
+    private var isLocked: Bool {
+        !(encounter.optometristName ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+    }
+
     var body: some View {
         ZStack {
             BrandColors.backgroundGradient.ignoresSafeArea()
@@ -15,11 +21,19 @@ struct OptometristHandoffScreen: View {
             VStack(spacing: 32) {
                 Spacer()
 
-                mainCard
+                if isLocked {
+                    lockedCard
+                } else {
+                    mainCard
+                }
 
                 Spacer()
 
-                continueButton
+                if isLocked {
+                    lockedContinueButton
+                } else {
+                    continueButton
+                }
             }
             .padding(.horizontal, 20)
         }
@@ -39,9 +53,92 @@ struct OptometristHandoffScreen: View {
                     onContinueToAntecedents()
                 }
             )
-            // ✅ Tipo explícito para evitar el error de contextual type si SwiftUI se pone quisquilloso
             .presentationDetents([PresentationDetent.medium])
         }
+    }
+
+    // MARK: - Locked Card
+
+    private var lockedCard: some View {
+        VStack(spacing: 28) {
+            ZStack {
+                Circle()
+                    .fill(BrandColors.primary.opacity(0.15))
+                    .frame(width: 120, height: 120)
+                    .scaleEffect(animate ? 1 : 0.85)
+
+                Circle()
+                    .stroke(BrandColors.strokeGradient, lineWidth: 4)
+                    .frame(width: 120, height: 120)
+
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(BrandColors.primary)
+            }
+
+            VStack(spacing: 14) {
+                Text("Optometrista asignado")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+
+                Text(encounter.optometristName ?? "")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(BrandColors.secondary)
+                    .multilineTextAlignment(.center)
+
+                Divider().padding(.vertical, 4)
+
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(BrandColors.accent)
+
+                    Text("El optometrista ya fue registrado y no puede modificarse.")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(28)
+        .background(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(Color.white.opacity(0.90))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .stroke(BrandColors.accent.opacity(0.18), lineWidth: 1)
+                )
+                .shadow(color: BrandColors.secondary.opacity(0.12), radius: 25, x: 0, y: 15)
+        )
+        .opacity(animate ? 1 : 0)
+        .offset(y: animate ? 0 : 20)
+    }
+
+    private var lockedContinueButton: some View {
+        Button {
+            onContinueToAntecedents()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.right.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+
+                Text("Continuar")
+                    .font(.system(size: 18, weight: .bold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .foregroundStyle(.white)
+            .background(
+                LinearGradient(
+                    colors: [BrandColors.primary, BrandColors.secondary],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: BrandColors.secondary.opacity(0.25), radius: 20, x: 0, y: 12)
+        }
+        .padding(.bottom, 24)
     }
 
     // MARK: - Main Card

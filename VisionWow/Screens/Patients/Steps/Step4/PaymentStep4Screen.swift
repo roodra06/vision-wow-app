@@ -11,13 +11,8 @@ import UIKit
 struct PaymentStep4Screen: View {
     @Bindable var encounter: Encounter
     let errors: [String: String]
-
-    // Paso 5/5 (si Pago es el último)
-    private let stepIndex = 5
-    private let totalSteps = 5
-
-    @State private var showShare = false
-    @State private var pdfURL: URL? = nil
+    var stepNumber: Int = 5
+    var totalSteps: Int = 6
 
     private var patientIdText: String {
         let raw = String(describing: encounter.id)
@@ -41,16 +36,10 @@ struct PaymentStep4Screen: View {
             VStack(spacing: 14) {
                 headerCard
                 paymentCard
-                pdfCard
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 28)
-        }
-        .sheet(isPresented: $showShare) {
-            if let pdfURL {
-                ShareSheet(activityItems: [pdfURL])
-            }
         }
     }
 
@@ -108,14 +97,14 @@ struct PaymentStep4Screen: View {
 
             VStack(spacing: 6) {
                 HStack {
-                    Text("Paso \(stepIndex) de \(totalSteps)")
+                    Text("Paso \(stepNumber) de \(totalSteps)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
 
                 ProgressPillBar(
-                    progress: CGFloat(stepIndex) / CGFloat(totalSteps),
+                    progress: CGFloat(stepNumber) / CGFloat(totalSteps),
                     height: 10
                 )
             }
@@ -205,6 +194,28 @@ struct PaymentStep4Screen: View {
                 }
             }
 
+            HStack(spacing: 12) {
+                FieldRow("A cuenta (anticipo)") {
+                    iconTextField(
+                        icon: "arrow.down.circle.fill",
+                        placeholder: "0.00",
+                        text: $encounter.payDeposit,
+                        isError: false
+                    )
+                    .keyboardType(.decimalPad)
+                }
+
+                FieldRow("Costo lente (inversión)") {
+                    iconTextField(
+                        icon: "tag.fill",
+                        placeholder: "0.00",
+                        text: $encounter.lensCost,
+                        isError: false
+                    )
+                    .keyboardType(.decimalPad)
+                }
+            }
+
             Divider().opacity(0.35)
 
             sectionHeader(icon: "tag.fill", title: "Ajustes")
@@ -234,47 +245,6 @@ struct PaymentStep4Screen: View {
                         isError: false
                     )
                 }
-            }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.82))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(BrandColors.accent.opacity(0.16), lineWidth: 1)
-                )
-                .shadow(color: BrandColors.secondary.opacity(0.06), radius: 14, x: 0, y: 8)
-        )
-    }
-
-    private var pdfCard: some View {
-        VStack(spacing: 12) {
-            sectionHeader(icon: "doc.richtext.fill", title: "PDF")
-
-            Text("Genera el PDF para guardarlo en el iPad y compartirlo (WhatsApp, correo, etc.).")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: 10) {
-                Button {
-                    generatePDFAndShare()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.and.arrow.up")
-                        Text("Generar y compartir PDF")
-                    }
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(BrandColors.primary)
-                    )
-                }
-                .buttonStyle(.plain)
             }
         }
         .padding(16)
@@ -381,48 +351,5 @@ struct PaymentStep4Screen: View {
         .frame(maxWidth: .infinity, minHeight: 44)
     }
 
-    // MARK: - PDF
-
-    private func generatePDFAndShare() {
-        guard let logo = UIImage(named: "visionwow_logo") else {
-            print("ERROR: No se encontró el asset visionwow_logo en Assets.xcassets")
-            return
-        }
-
-        let data = PDFRenderer.render(encounter: encounter, logo: logo)
-
-        do {
-            let url = try writePDFToDocuments(data: data, fileName: makePDFName())
-            pdfURL = url
-            showShare = true
-        } catch {
-            print("ERROR writing PDF:", error)
-        }
-    }
-
-    private func makePDFName() -> String {
-        let id = String(describing: encounter.id).prefix(8)
-        let safeName = fullNameText
-            .replacingOccurrences(of: " ", with: "_")
-            .replacingOccurrences(of: "/", with: "-")
-        return "VisionWow_\(safeName)_\(id).pdf"
-    }
-
-    private func writePDFToDocuments(data: Data, fileName: String) throws -> URL {
-        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let url = dir.appendingPathComponent(fileName)
-        try data.write(to: url, options: [.atomic])
-        return url
-    }
 }
 
-// MARK: - Share Sheet (UIActivityViewController)
-struct ShareSheet: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}

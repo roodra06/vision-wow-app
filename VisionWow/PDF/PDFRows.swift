@@ -41,6 +41,28 @@ enum PDFRows {
         return y + h
     }
 
+    static func drawSignatureRow(label: String, image: UIImage, x: CGFloat, y: CGFloat, w: CGFloat) -> CGFloat {
+        let labelH: CGFloat = 14
+        let imgH: CGFloat = 60
+        let totalH = labelH + imgH + 8
+
+        PDFDraw.drawText(label,
+                         in: CGRect(x: x, y: y, width: w, height: labelH),
+                         font: .systemFont(ofSize: 9, weight: .semibold),
+                         color: .black,
+                         alignment: .left)
+
+        let imgRect = CGRect(x: x, y: y + labelH + 2, width: w / 2, height: imgH)
+        image.draw(in: imgRect)
+
+        PDFDraw.drawLine(from: CGPoint(x: imgRect.minX, y: imgRect.maxY + 2),
+                         to: CGPoint(x: imgRect.maxX, y: imgRect.maxY + 2),
+                         color: UIColor.black.withAlphaComponent(0.25),
+                         width: 1)
+
+        return y + totalH
+    }
+
     static func drawLongLine(label: String, value: String, x: CGFloat, y: CGFloat, w: CGFloat) -> CGFloat {
         let h: CGFloat = 22
         let labelW: CGFloat = 96

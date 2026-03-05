@@ -32,6 +32,7 @@ struct EncounterWizardView: View {
         case antecedents
         case exam
         case payment
+        case signature
     }
 
     private var currentStep: Step {
@@ -51,6 +52,9 @@ struct EncounterWizardView: View {
         return max(0, min(idx, Step.allCases.count - 1))
     }
 
+    private var totalStepsVisible: Int { Step.allCases.count - startIndex }
+    private var currentStepNumber: Int { (stepIndex - startIndex) + 1 }
+
     private var hasOptometristAssigned: Bool {
         !(encounter.optometristName ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -63,13 +67,16 @@ struct EncounterWizardView: View {
             Group {
                 switch currentStep {
                 case .clinicalHistory:
-                    ClinicalHistoryView(encounter: encounter, errors: errors)
+                    ClinicalHistoryView(encounter: encounter, errors: errors,
+                                        stepNumber: currentStepNumber, totalSteps: totalStepsVisible)
 
                 case .personalData:
-                    PersonalDataView(encounter: encounter, errors: errors)
+                    PersonalDataView(encounter: encounter, errors: errors,
+                                     stepNumber: currentStepNumber, totalSteps: totalStepsVisible)
 
                 case .antecedents:
-                    AntecedentsStep2Screen(encounter: encounter)
+                    AntecedentsStep2Screen(encounter: encounter,
+                                           stepNumber: currentStepNumber, totalSteps: totalStepsVisible)
                         .onAppear {
                             // ✅ Candado duro: si llegan aquí sin optometrista, no debe pasar
                             if !hasOptometristAssigned {
@@ -80,27 +87,36 @@ struct EncounterWizardView: View {
                         }
 
                 case .exam:
-                    ExamStep3Screen(encounter: encounter, errors: errors)
+                    ExamStep3Screen(encounter: encounter, errors: errors,
+                                    stepNumber: currentStepNumber, totalSteps: totalStepsVisible)
 
                 case .payment:
-                    PaymentStep4Screen(encounter: encounter, errors: errors)
+                    PaymentStep4Screen(encounter: encounter, errors: errors,
+                                       stepNumber: currentStepNumber, totalSteps: totalStepsVisible)
+
+                case .signature:
+                    SignatureStepScreen(encounter: encounter) {
+                        onFinish(encounter)
+                    }
                 }
             }
             .padding(.top, 6)
 
             Spacer()
 
-            HStack(spacing: 12) {
-                SecondaryButton(title: stepIndex == startIndex ? "Cancelar" : "Atrás") {
-                    back()
-                }
+            if currentStep != .signature {
+                HStack(spacing: 12) {
+                    SecondaryButton(title: stepIndex == startIndex ? "Cancelar" : "Atrás") {
+                        back()
+                    }
 
-                PrimaryButton(title: isLastStep ? "Finalizar" : "Continuar") {
-                    next()
+                    PrimaryButton(title: "Continuar") {
+                        next()
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
@@ -113,23 +129,18 @@ struct EncounterWizardView: View {
                 prefillClinicalHistoryForOpticaIfNeeded()
             }
         }
-        .background(
-            NavigationLink(
-                destination: OptometristHandoffScreen(encounter: encounter) {
-                    // ✅ SOLO si confirma (y guardó nombre) avanzamos a antecedentes
-                    stepIndex = Step.antecedents.rawValue
-                    goHandoff = false
-                },
-                isActive: $goHandoff
-            ) { EmptyView() }
-            .hidden()
-        )
+        .navigationDestination(isPresented: $goHandoff) {
+            OptometristHandoffScreen(encounter: encounter) {
+                stepIndex = Step.antecedents.rawValue
+                goHandoff = false
+            }
+        }
     }
 
     // MARK: - Back
 
     private func back() {
-        if stepIndex == startIndex {
+        if stepIndex <= startIndex {
             onCancel()
         } else {
             stepIndex -= 1
@@ -301,6 +312,9 @@ struct EncounterWizardView: View {
                 e["followUpDate"] = "Selecciona una fecha."
             }
 
+            if isEmpty(encounter.ishihara)   { e["ishihara"]   = "Campo obligatorio." }
+            if isEmpty(encounter.campimetry) { e["campimetry"] = "Campo obligatorio." }
+
         case .payment:
             if encounter.payStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 e["payStatus"] = "Selecciona un estatus."
@@ -314,6 +328,9 @@ struct EncounterWizardView: View {
             if encounter.payReference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 e["payReference"] = "Campo obligatorio."
             }
+
+        case .signature:
+            break
         }
 
         return e

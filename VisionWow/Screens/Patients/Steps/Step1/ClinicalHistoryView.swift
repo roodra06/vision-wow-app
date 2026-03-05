@@ -12,9 +12,8 @@ struct ClinicalHistoryView: View {
     @Bindable var encounter: Encounter
     let errors: [String: String]
 
-    // Paso 1/4
-    private let stepIndex = 1
-    private let totalSteps = 4
+    var stepNumber: Int = 1
+    var totalSteps: Int = 6
 
     // Cámara
     @State private var showCamera = false
@@ -134,13 +133,13 @@ struct ClinicalHistoryView: View {
 
             VStack(spacing: 6) {
                 HStack {
-                    Text("Paso \(stepIndex) de \(totalSteps)")
+                    Text("Paso \(stepNumber) de \(totalSteps)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
 
-                ProgressPillBar(progress: CGFloat(stepIndex) / CGFloat(totalSteps), height: 10)
+                ProgressPillBar(progress: CGFloat(stepNumber) / CGFloat(totalSteps), height: 10)
             }
         }
         .padding(14)

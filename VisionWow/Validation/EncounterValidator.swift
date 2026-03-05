@@ -22,10 +22,10 @@ enum EncounterValidator {
             }
         }
 
-        // Datos corporativos (Encounter)
-        if e.seniorityYears == nil { errs.append(.init(fieldKey: "seniorityYears", message: "Campo obligatorio.")) }
-        if e.seniorityMonths == nil { errs.append(.init(fieldKey: "seniorityMonths", message: "Campo obligatorio.")) }
-        if e.seniorityWeeks == nil { errs.append(.init(fieldKey: "seniorityWeeks", message: "Campo obligatorio.")) }
+        // Datos corporativos (Encounter) — al menos uno de los tres campos de antigüedad
+        if e.seniorityYears == nil && e.seniorityMonths == nil && e.seniorityWeeks == nil {
+            errs.append(.init(fieldKey: "seniorityYears", message: "Captura antigüedad en años, meses o semanas."))
+        }
 
         req(e.companyName, "companyName")
         req(e.branch, "branch")
@@ -72,20 +72,31 @@ enum EncounterValidator {
             }
         }
 
+        // Agudeza visual lejana (OD, OI, AO)
         req(e.vaOdSc, "vaOdSc")
         req(e.vaOsSc, "vaOsSc")
+        req(e.vaOuSc, "vaOuSc")
         req(e.vaOdCc, "vaOdCc")
         req(e.vaOsCc, "vaOsCc")
+        req(e.vaOuCc, "vaOuCc")
+
+        // Agudeza visual cercana (OD, OI, AO)
+        req(e.nearVaOdSc, "nearVaOdSc")
+        req(e.nearVaOsSc, "nearVaOsSc")
+        req(e.nearVaOuSc, "nearVaOuSc")
+        req(e.nearVaOdCc, "nearVaOdCc")
+        req(e.nearVaOsCc, "nearVaOsCc")
+        req(e.nearVaOuCc, "nearVaOuCc")
 
         req(e.rxOdSph, "rxOdSph")
         req(e.rxOdCyl, "rxOdCyl")
         req(e.rxOdAxis, "rxOdAxis")
-        req(e.rxOdAdd, "rxOdAdd")
+        // ADD es opcional — no se valida
 
         req(e.rxOsSph, "rxOsSph")
         req(e.rxOsCyl, "rxOsCyl")
         req(e.rxOsAxis, "rxOsAxis")
-        req(e.rxOsAdd, "rxOsAdd")
+        // ADD es opcional — no se valida
 
         req(e.dip, "dip")
         req(e.lensType, "lensType")

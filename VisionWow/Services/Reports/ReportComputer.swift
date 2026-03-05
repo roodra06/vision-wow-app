@@ -37,7 +37,7 @@ struct ReportSummary {
 
 enum ReportComputer {
 
-    static func didBuy(_ e: Encounter) -> Bool {
+    @MainActor static func didBuy(_ e: Encounter) -> Bool {
         let status = e.payStatus.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let total  = e.payTotal.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -46,7 +46,7 @@ enum ReportComputer {
         return false
     }
 
-    static func computeSummary(
+    @MainActor static func computeSummary(
         company: Company,
         encounters: [Encounter],
         selectedAntecedentKeys: [String]

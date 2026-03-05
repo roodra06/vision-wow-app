@@ -11,7 +11,7 @@ enum PDFExam {
     static func drawExamBlock(encounter: Encounter, x: CGFloat, y: CGFloat, w: CGFloat, pageRect: CGRect, ctx: UIGraphicsPDFRendererContext) -> CGFloat {
         var yy = y
 
-        if yy + 220 > pageRect.height - PDFLayout.marginBottom {
+        if yy + 280 > pageRect.height - PDFLayout.marginBottom {
             ctx.beginPage()
             yy = PDFLayout.marginTop
         }
@@ -53,10 +53,46 @@ enum PDFExam {
         ) + 10
 
         yy = PDFRows.drawLineRow2(
+            left: ("Diagnóstico", encounter.diagnostico.isEmpty ? "—" : encounter.diagnostico),
+            right: ("Fecha de consulta", encounter.followUpDate.map { DateUtils.formatShort($0) } ?? "—"),
+            x: x, y: yy, w: w
+        ) + 10
+
+        yy = PDFRows.drawLineRow2(
             left: ("Ishihara", encounter.ishihara),
             right: ("Campimetría", encounter.campimetry),
             x: x, y: yy, w: w
         ) + 4
+
+        // Garantía
+        if encounter.isGuarantee {
+            yy += 8
+            let reason = encounter.guaranteeReason ?? ""
+            yy = PDFRows.drawLongLine(
+                label: "GARANTÍA",
+                value: reason.isEmpty ? "—" : reason,
+                x: x, y: yy, w: w
+            ) + 4
+        }
+
+        // Firmas
+        let hasSigs = encounter.patientSignatureData != nil || encounter.optometristSignatureData != nil
+        if hasSigs {
+            if yy + 160 > pageRect.height - PDFLayout.marginBottom {
+                ctx.beginPage()
+                yy = PDFLayout.marginTop
+            }
+            yy += 12
+            yy = PDFSections.drawSectionTitle("FIRMAS", x: x, y: yy, w: w)
+            yy += 6
+
+            if let data = encounter.patientSignatureData, let img = UIImage(data: data) {
+                yy = PDFRows.drawSignatureRow(label: "Firma del Paciente", image: img, x: x, y: yy, w: w) + 10
+            }
+            if let data = encounter.optometristSignatureData, let img = UIImage(data: data) {
+                yy = PDFRows.drawSignatureRow(label: "Firma del Optometrista", image: img, x: x, y: yy, w: w) + 10
+            }
+        }
 
         return yy
     }

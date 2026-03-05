@@ -16,7 +16,13 @@ struct PDFPreviewScreen: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Compartir") {
-                            ShareService.share(items: [fileURL])
+                            print("[Compartir] Botón tapped — fileURL: \(fileURL.lastPathComponent)")
+                            guard let data = try? Data(contentsOf: fileURL) else {
+                                print("[Compartir] ❌ No se pudo leer el archivo")
+                                return
+                            }
+                            print("[Compartir] ✅ Archivo leído — \(data.count) bytes")
+                            ShareService.sharePDF(data: data, fileName: fileURL.lastPathComponent)
                         }
                     }
                 }

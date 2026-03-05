@@ -98,9 +98,23 @@ final class Encounter {
     var payReference: String
     var payDiscount: String?
     var payNotes: String?
+    var payDeposit: String      // Anticipo / a cuenta
+    var lensCost: String        // Costo de inversión del lente
+
+    // Diagnóstico del optometrista
+    var diagnostico: String
 
     // Optometrista asignado
     var optometristName: String?
+
+    // Firmas
+    var patientSignatureData: Data?
+    var optometristSignatureData: Data?
+    var signatureVideoFileName: String?
+
+    // Garantía
+    var isGuarantee: Bool
+    var guaranteeReason: String?
 
     // Helpers (conveniencia para UI/PDF)
     var patientFirstName: String { patient?.firstName ?? "" }
@@ -136,9 +150,7 @@ final class Encounter {
         self.seniorityMonths = nil
         self.seniorityWeeks = nil
 
-        let defaults = Antecedents.defaults()
-        self.antecedentesJSON = (try? JSONEncoder().encode(defaults))
-            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        self.antecedentesJSON = "{}"
 
         self.ishihara = ""
         self.campimetry = ""
@@ -188,7 +200,15 @@ final class Encounter {
         self.payReference = ""
         self.payDiscount = nil
         self.payNotes = nil
+        self.payDeposit = ""
+        self.lensCost = ""
 
+        self.diagnostico = ""
         self.optometristName = nil
+        self.patientSignatureData = nil
+        self.optometristSignatureData = nil
+        self.signatureVideoFileName = nil
+        self.isGuarantee = false
+        self.guaranteeReason = nil
     }
 }

@@ -35,7 +35,7 @@ enum PDFPersonalData {
 
         yy = PDFRows.drawLineRow2(
             left: ("Tel. Cel", p?.cellPhone ?? ""),
-            right: ("", ""),
+            right: ("Correo Personal", p?.personalEmail ?? ""),
             x: x, y: yy, w: w
         ) + 2
 
