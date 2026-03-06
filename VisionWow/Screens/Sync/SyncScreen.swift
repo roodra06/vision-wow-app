@@ -2,10 +2,10 @@
 //  SyncScreen.swift
 //  VisionWow
 //
-//  Pantalla para exportar/importar datos entre iPads (.vwsync JSON).
-//  Cómo usarlo:
-//    1. iPad A: "Exportar" → comparte el .vwsync por AirDrop / Mail / Files
-//    2. iPad B: "Importar" → selecciona el .vwsync recibido → los datos se fusionan
+//  Pantalla de sincronización exclusiva por AirDrop.
+//  Enviar: genera .vwsync y abre share sheet (AirDrop destacado).
+//  Recibir: iOS abre el app automáticamente → FlowPickerScreen detecta la URL
+//           → abre esta pantalla con el archivo ya procesado.
 //
 
 import SwiftUI
@@ -15,6 +15,7 @@ import UniformTypeIdentifiers
 struct SyncScreen: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppSyncState.self) private var syncState
 
     @Query private var allEncounters: [Encounter]
 
@@ -22,13 +23,14 @@ struct SyncScreen: View {
     @State private var exportURL: URL?
     @State private var showShareSheet = false
 
-    // Import
-    @State private var showFilePicker = false
+    // Import result (cuando viene de AirDrop al abrir la pantalla)
     @State private var importResult: ExportImportService.ImportResult?
     @State private var showImportResult = false
+    @State private var importSourceDevice: String = ""
 
     // Estado general
     @State private var isWorking = false
+    @State private var workingMessage: String = ""
     @State private var errorMessage: String?
 
     var body: some View {
@@ -40,7 +42,7 @@ struct SyncScreen: View {
                     VStack(spacing: 28) {
                         headerSection
                         exportSection
-                        importSection
+                        howToReceiveSection
                         Spacer(minLength: 40)
                     }
                     .padding(.horizontal, 24)
@@ -60,23 +62,25 @@ struct SyncScreen: View {
                     ShareSheet(items: [url])
                 }
             }
-            .fileImporter(
-                isPresented: $showFilePicker,
-                allowedContentTypes: [.vwsync],
-                allowsMultipleSelection: false
-            ) { result in
-                handleFileImport(result: result)
+            .sheet(isPresented: $showImportResult) {
+                if let res = importResult {
+                    ImportResultSheet(result: res, sourceDevice: importSourceDevice) {
+                        showImportResult = false
+                    }
+                }
             }
-            .alert("Importación completada", isPresented: $showImportResult, presenting: importResult) { _ in
-                Button("OK") {}
-            } message: { res in
-                Text(importResultMessage(res))
-            }
-            .alert("Error", isPresented: .constant(errorMessage != nil), actions: {
+            .alert("Error al importar", isPresented: .constant(errorMessage != nil), actions: {
                 Button("OK") { errorMessage = nil }
             }, message: {
                 Text(errorMessage ?? "")
             })
+            .onAppear {
+                // Procesar archivo recibido por AirDrop (si viene de FlowPickerScreen)
+                if let url = syncState.incomingURL {
+                    processIncomingFile(url: url)
+                    syncState.incomingURL = nil
+                }
+            }
         }
     }
 
@@ -84,16 +88,16 @@ struct SyncScreen: View {
 
     private var headerSection: some View {
         VStack(spacing: 10) {
-            Image(systemName: "arrow.triangle.2.circlepath.icloud")
+            Image(systemName: "airplayaudio")
                 .font(.system(size: 52))
                 .foregroundStyle(BrandColors.strokeGradient)
 
-            Text("Combina datos de múltiples iPads")
-                .font(.system(size: 17, weight: .medium))
+            Text("Sincronizar por AirDrop")
+                .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(BrandColors.secondary)
                 .multilineTextAlignment(.center)
 
-            Text("Exporta los datos de este iPad y luego importalos en el iPad principal para generar un reporte unificado.")
+            Text("Exporta los datos de este iPad y envíalos por AirDrop al iPad destino. El iPad receptor actualizará su base de datos automáticamente al aceptar el archivo.")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -104,22 +108,24 @@ struct SyncScreen: View {
     private var exportSection: some View {
         SyncCard(
             icon: "square.and.arrow.up",
-            title: "Exportar datos",
-            subtitle: "\(allEncounters.count) expediente\(allEncounters.count == 1 ? "" : "s") en este iPad"
+            title: "Exportar este iPad",
+            subtitle: "\(allEncounters.count) expediente\(allEncounters.count == 1 ? "" : "s") · fotos y firmas incluidas"
         ) {
             Button(action: performExport) {
                 HStack(spacing: 8) {
                     if isWorking {
                         ProgressView().tint(.white)
+                        Text(workingMessage)
+                            .fontWeight(.semibold)
                     } else {
-                        Image(systemName: "square.and.arrow.up.fill")
+                        Image(systemName: "arrow.up.circle.fill")
+                        Text("Enviar por AirDrop")
+                            .fontWeight(.semibold)
                     }
-                    Text("Exportar y compartir")
-                        .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(BrandColors.primary)
+                .background(isWorking || allEncounters.isEmpty ? Color.gray : BrandColors.primary)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
@@ -133,81 +139,77 @@ struct SyncScreen: View {
         }
     }
 
-    private var importSection: some View {
+    private var howToReceiveSection: some View {
         SyncCard(
             icon: "square.and.arrow.down",
-            title: "Importar datos",
-            subtitle: "Carga un archivo .vwsync recibido de otro iPad"
+            title: "Cómo recibir datos",
+            subtitle: "El iPad receptor se actualiza solo"
         ) {
-            Button(action: { showFilePicker = true }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "square.and.arrow.down.fill")
-                    Text("Seleccionar archivo .vwsync")
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(BrandColors.secondary)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 10) {
+                HowToStep(number: "1", text: "En el iPad origen, toca \"Enviar por AirDrop\"")
+                HowToStep(number: "2", text: "Selecciona este iPad en el panel de AirDrop")
+                HowToStep(number: "3", text: "Acepta el archivo en este iPad")
+                HowToStep(number: "4", text: "VisionWow importa automáticamente los expedientes")
             }
-            .disabled(isWorking)
 
-            Text("Los expedientes duplicados se omiten. Los datos más recientes prevalecen.")
+            Text("Los expedientes duplicados se omiten. Fotos, firmas y datos de empresa se sincronizan completos.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .padding(.top, 4)
         }
     }
 
     // MARK: - Actions
 
     private func performExport() {
+        workingMessage = "Preparando archivo…"
         isWorking = true
         Task {
             do {
                 let data = try ExportImportService.export(encounters: allEncounters)
-                let fileName = "VisionWow_\(deviceShortName())_\(dateTag()).vwsync"
+                let fileName = makeFileName()
                 let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
                 try data.write(to: tmpURL)
                 await MainActor.run {
                     exportURL = tmpURL
                     showShareSheet = true
                     isWorking = false
+                    workingMessage = ""
                 }
             } catch {
                 await MainActor.run {
                     errorMessage = "No se pudo exportar: \(error.localizedDescription)"
                     isWorking = false
+                    workingMessage = ""
                 }
             }
         }
     }
 
-    private func handleFileImport(result: Result<[URL], Error>) {
-        switch result {
-        case .failure(let err):
-            errorMessage = "Error al seleccionar archivo: \(err.localizedDescription)"
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            isWorking = true
-            Task {
-                do {
-                    let accessed = url.startAccessingSecurityScopedResource()
-                    defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-                    let data = try Data(contentsOf: url)
-                    let res = try await MainActor.run {
-                        try ExportImportService.importPackage(data: data, modelContext: modelContext)
-                    }
-                    await MainActor.run {
-                        importResult = res
-                        showImportResult = true
-                        isWorking = false
-                    }
-                } catch {
-                    await MainActor.run {
-                        errorMessage = "Error al importar: \(error.localizedDescription)"
-                        isWorking = false
-                    }
+    private func processIncomingFile(url: URL) {
+        workingMessage = "Importando expedientes…"
+        isWorking = true
+        Task {
+            do {
+                let data = try Data(contentsOf: url)
+                // Extraer nombre del dispositivo origen del nombre del archivo
+                let fileName = url.deletingPathExtension().lastPathComponent
+                let deviceHint = fileName.components(separatedBy: "_").dropLast(2).joined(separator: " ")
+                let res = try await MainActor.run {
+                    try ExportImportService.importPackage(data: data, modelContext: modelContext)
+                }
+                await MainActor.run {
+                    importSourceDevice = deviceHint
+                    importResult = res
+                    showImportResult = true
+                    isWorking = false
+                    workingMessage = ""
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Error al importar: \(error.localizedDescription)"
+                    isWorking = false
+                    workingMessage = ""
                 }
             }
         }
@@ -220,24 +222,50 @@ struct SyncScreen: View {
         }
     }
 
-    private func importResultMessage(_ res: ExportImportService.ImportResult) -> String {
-        var msg = "Nuevos: \(res.inserted) · Actualizados: \(res.updated) · Omitidos: \(res.skipped)"
-        if !res.errors.isEmpty {
-            msg += "\n\nErrores (\(res.errors.count)):\n" + res.errors.prefix(3).joined(separator: "\n")
+    // MARK: - Filename
+
+    private func makeFileName() -> String {
+        // Intentar usar el nombre de la empresa principal
+        let names = Set(allEncounters.compactMap { $0.company?.name })
+        let companyPart: String
+        if names.count == 1, let name = names.first {
+            companyPart = name
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: " ", with: "_")
+                .filter { $0.isLetter || $0.isNumber || $0 == "_" }
+                .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        } else {
+            companyPart = "VisionWow"
         }
-        return msg
-    }
 
-    private func deviceShortName() -> String {
-        UIDevice.current.name
-            .replacingOccurrences(of: " ", with: "_")
-            .filter { $0.isLetter || $0.isNumber || $0 == "_" }
+        let df = DateFormatter()
+        df.dateFormat = "yyyyMMdd"
+        let dateStr = df.string(from: Date())
+        let uniqueKey = String(UUID().uuidString.prefix(6).uppercased())
+        return "\(companyPart)_\(dateStr)_\(uniqueKey).vwsync"
     }
+}
 
-    private func dateTag() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyyMMdd_HHmm"
-        return f.string(from: Date())
+// MARK: - HowToStep helper
+
+private struct HowToStep: View {
+    let number: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(number)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 20, height: 20)
+                .background(BrandColors.primary)
+                .clipShape(Circle())
+
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(BrandColors.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
@@ -275,6 +303,166 @@ private struct SyncCard<Content: View>: View {
         .background(BrandColors.cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: BrandColors.secondary.opacity(0.10), radius: 8, x: 0, y: 4)
+    }
+}
+
+// MARK: - ImportResultSheet
+
+private struct ImportResultSheet: View {
+    let result: ExportImportService.ImportResult
+    let sourceDevice: String
+    let onDismiss: () -> Void
+
+    private var hasChanges: Bool { result.inserted > 0 || result.updated > 0 }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                BrandColors.backgroundGradient.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 24) {
+
+                        // Icono y título
+                        VStack(spacing: 10) {
+                            Image(systemName: hasChanges ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
+                                .font(.system(size: 60))
+                                .foregroundStyle(hasChanges ? Color.green : BrandColors.primary)
+
+                            Text(hasChanges ? "¡Sincronización exitosa!" : "Todo al día")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(BrandColors.secondary)
+
+                            if !sourceDevice.isEmpty {
+                                Text("Archivo: \(sourceDevice)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.top, 8)
+
+                        // Totales
+                        HStack(spacing: 0) {
+                            StatBadge(value: result.inserted, label: "Nuevos", color: .green)
+                            Divider().frame(height: 40)
+                            StatBadge(value: result.updated, label: "Actualizados", color: BrandColors.primary)
+                            Divider().frame(height: 40)
+                            StatBadge(value: result.skipped, label: "Sin cambios", color: .secondary)
+                        }
+                        .background(BrandColors.cardFill)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .shadow(color: BrandColors.secondary.opacity(0.08), radius: 6, x: 0, y: 3)
+
+                        // Desglose por empresa
+                        if !result.sortedCompanies.isEmpty {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text("DETALLE POR EMPRESA")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.bottom, 8)
+                                    .padding(.horizontal, 4)
+
+                                VStack(spacing: 0) {
+                                    ForEach(result.sortedCompanies, id: \.name) { co in
+                                        CompanyResultRow(company: co)
+                                        if co.name != result.sortedCompanies.last?.name {
+                                            Divider().padding(.leading, 16)
+                                        }
+                                    }
+                                }
+                                .background(BrandColors.cardFill)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                                .shadow(color: BrandColors.secondary.opacity(0.08), radius: 6, x: 0, y: 3)
+                            }
+                        }
+
+                        // Errores (si hay)
+                        if !result.errors.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Label("Errores (\(result.errors.count))", systemImage: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.orange)
+
+                                ForEach(result.errors.prefix(5), id: \.self) { err in
+                                    Text("• \(err)")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(14)
+                            .background(Color.orange.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+
+                        Button(action: onDismiss) {
+                            Text("Cerrar")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(BrandColors.primary)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .padding(.top, 4)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 32)
+                }
+            }
+            .navigationTitle("Resultado")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+private struct StatBadge: View {
+    let value: Int
+    let label: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text("\(value)")
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .foregroundStyle(value > 0 ? color : Color.secondary)
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+    }
+}
+
+private struct CompanyResultRow: View {
+    let company: ExportImportService.CompanyResult
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(company.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(BrandColors.secondary)
+                HStack(spacing: 10) {
+                    if company.inserted > 0 {
+                        Label("\(company.inserted) nuevo\(company.inserted > 1 ? "s" : "")", systemImage: "plus.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                    if company.updated > 0 {
+                        Label("\(company.updated) actualizado\(company.updated > 1 ? "s" : "")", systemImage: "arrow.clockwise.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(BrandColors.primary)
+                    }
+                }
+            }
+            Spacer()
+            Text("\(company.inserted + company.updated)")
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundStyle(BrandColors.secondary.opacity(0.6))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 

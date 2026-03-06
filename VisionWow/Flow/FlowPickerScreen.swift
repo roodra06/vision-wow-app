@@ -11,6 +11,7 @@ struct FlowPickerScreen: View {
     @State private var showCompanies      = false
     @State private var showOpticaPatients = false
     @State private var showSync           = false
+    @Environment(AppSyncState.self) private var syncState
 
     var body: some View {
         ZStack {
@@ -87,6 +88,17 @@ struct FlowPickerScreen: View {
         }
         .sheet(isPresented: $showSync) {
             SyncScreen()
+        }
+        // Cold-start: URL ya estaba seteada antes de que FlowPickerScreen apareciera
+        .onAppear {
+            if syncState.incomingURL != nil {
+                showSync = true
+            }
+        }
+        // Foreground/background: URL llega mientras la app ya estaba corriendo
+        .onChange(of: syncState.incomingURL) { _, url in
+            guard url != nil else { return }
+            showSync = true
         }
     }
 }

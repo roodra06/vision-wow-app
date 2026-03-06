@@ -38,6 +38,8 @@ struct ClinicalHistoryView: View {
 
     @State private var seniorityUnit: SeniorityUnit = .years
     @State private var seniorityValueText: String = ""
+    @State private var pendingSeniorityUnit: SeniorityUnit? = nil
+    @State private var showSeniorityUnitChangeAlert = false
 
     // ✅ Condición laboral (UI local, no persistente por ahora)
     @State private var isPlantaUI: Bool = false
@@ -76,6 +78,21 @@ struct ClinicalHistoryView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Verifica permisos de cámara en Ajustes y que el dispositivo tenga cámara disponible.")
+        }
+        .alert("Cambiar unidad borrará el valor", isPresented: $showSeniorityUnitChangeAlert, presenting: pendingSeniorityUnit) { unit in
+            Button("Cambiar y borrar", role: .destructive) {
+                seniorityUnit = unit
+                seniorityValueText = ""
+                encounter.seniorityYears = nil
+                encounter.seniorityMonths = nil
+                encounter.seniorityWeeks = nil
+                pendingSeniorityUnit = nil
+            }
+            Button("Cancelar", role: .cancel) {
+                pendingSeniorityUnit = nil
+            }
+        } message: { unit in
+            Text("Si cambias a \"\(unit.rawValue)\" se borrará el valor de antigüedad actual. ¿Continuar?")
         }
     }
 
@@ -225,18 +242,25 @@ struct ClinicalHistoryView: View {
             sectionHeader(icon: "clock.arrow.circlepath", title: "Antigüedad")
 
             VStack(spacing: 10) {
-                Picker("", selection: $seniorityUnit) {
+                Picker("", selection: Binding(
+                    get: { seniorityUnit },
+                    set: { newUnit in
+                        guard newUnit != seniorityUnit else { return }
+                        if !seniorityValueText.isEmpty {
+                            // Hay un valor: pedir confirmación
+                            pendingSeniorityUnit = newUnit
+                            showSeniorityUnitChangeAlert = true
+                        } else {
+                            // Sin valor: cambiar directamente
+                            seniorityUnit = newUnit
+                        }
+                    }
+                )) {
                     ForEach(SeniorityUnit.allCases) { unit in
                         Text(unit.rawValue).tag(unit)
                     }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: seniorityUnit) { _, _ in
-                    seniorityValueText = ""
-                    encounter.seniorityYears = nil
-                    encounter.seniorityMonths = nil
-                    encounter.seniorityWeeks = nil
-                }
 
                 FieldRow("Valor", required: true, error: seniorityErrorMessage) {
                     iconNumberField(
@@ -450,7 +474,7 @@ struct ClinicalHistoryView: View {
         if encounter.patient == nil {
             encounter.patient = Patient()
         }
-        encounter.patient?.profileImageData = img.jpegData(compressionQuality: 0.82)
+        encounter.patient?.profileImageData = img.resizedForProfile()
     }
 
     // MARK: - Antigüedad: UI <-> modelo

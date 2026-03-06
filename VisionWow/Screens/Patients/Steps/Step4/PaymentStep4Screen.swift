@@ -30,6 +30,7 @@ struct PaymentStep4Screen: View {
     /// The payTotal at the moment the FIRST code was applied (our reference "base")
     @State private var baseTotal: String = ""
     @State private var didLoadDiscounts = false
+    @State private var showTotalChangedAlert = false
 
     // MARK: - Helpers
 
@@ -86,6 +87,15 @@ struct PaymentStep4Screen: View {
             .padding(.bottom, 28)
         }
         .onAppear { loadExistingDiscounts() }
+        .alert("Total modificado", isPresented: $showTotalChangedAlert) {
+            Button("Quitar descuentos", role: .destructive) { clearDiscounts() }
+            Button("Cancelar", role: .cancel) {
+                // Revertir el total al valor con descuento previo
+                encounter.payTotal = String(format: "%.2f", discountedTotal)
+            }
+        } message: {
+            Text("Cambiaste el precio total mientras hay descuentos aplicados. ¿Deseas quitar los descuentos y usar el nuevo precio?")
+        }
     }
 
     // MARK: - Header
@@ -194,8 +204,13 @@ struct PaymentStep4Screen: View {
                     )
                     .keyboardType(.decimalPad)
                     .onChange(of: encounter.payTotal) {
-                        // If user changes Total manually while no discounts applied, keep base in sync
-                        if appliedCodes.isEmpty { baseTotal = encounter.payTotal }
+                        if appliedCodes.isEmpty {
+                            // Sin descuentos: mantener base en sync
+                            baseTotal = encounter.payTotal
+                        } else {
+                            // Con descuentos activos: pedir confirmación
+                            showTotalChangedAlert = true
+                        }
                     }
                 }
             }
@@ -428,7 +443,7 @@ struct PaymentStep4Screen: View {
                 )
 
                 // Clear button
-                Button {
+                Button(role: .destructive) {
                     clearDiscounts()
                 } label: {
                     Label("Quitar todos los descuentos", systemImage: "xmark.circle")

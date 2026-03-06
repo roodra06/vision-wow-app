@@ -59,8 +59,8 @@ enum PDFExam {
         ) + 10
 
         yy = PDFRows.drawLineRow2(
-            left: ("Ishihara", encounter.ishihara),
-            right: ("Campimetría", encounter.campimetry),
+            left: ("Ishihara", encounter.ishihara.isEmpty ? "—" : encounter.ishihara),
+            right: ("Campimetría", encounter.campimetry.isEmpty ? "—" : encounter.campimetry),
             x: x, y: yy, w: w
         ) + 4
 

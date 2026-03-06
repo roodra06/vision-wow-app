@@ -2,9 +2,9 @@
 //  ExportImportService.swift
 //  VisionWow
 //
-//  Serializa Encounters + Patients a JSON (.vwsync) para sincronizar
-//  datos entre múltiples iPads que atienden la misma empresa.
-//  Imágenes (fotos, firmas) NO se incluyen por tamaño.
+//  Serializa Encounters + Patients + Company a JSON (.vwsync) para sincronizar
+//  entre múltiples iPads por AirDrop.
+//  Imágenes y firmas se incluyen como Base64.
 //
 
 import Foundation
@@ -25,6 +25,8 @@ struct PatientDTO: Codable {
     var cellPhone: String
     var personalEmail: String
     var externalPatientNumber: String?
+    // Foto de perfil (Base64 PNG/JPEG)
+    var profileImageBase64: String?
 }
 
 struct EncounterDTO: Codable {
@@ -37,8 +39,12 @@ struct EncounterDTO: Codable {
     // Paciente embebido
     var patient: PatientDTO?
 
-    // Empresa
+    // Empresa — suficiente para find-or-create en el iPad destino
     var companyName: String
+    var companyServiceType: String
+    var companyExpectedPatients: Int?
+
+    // Datos laborales del encuentro
     var branch: String
     var employeeNumber: String?
     var department: String
@@ -105,6 +111,10 @@ struct EncounterDTO: Codable {
     var optometristName: String?
     var signatureVideoFileName: String?
 
+    // Firmas (Base64 PNG)
+    var patientSignatureBase64: String?
+    var optometristSignatureBase64: String?
+
     // Garantía
     var isGuarantee: Bool
     var guaranteeReason: String?
@@ -133,17 +143,29 @@ enum ExportImportService {
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        // Sin prettyPrinted para reducir tamaño (puede duplicar el size)
         return try encoder.encode(package)
     }
 
     // MARK: Import
+
+    struct CompanyResult {
+        var name: String
+        var inserted: Int = 0
+        var updated: Int = 0
+    }
 
     struct ImportResult {
         var inserted: Int = 0
         var updated: Int = 0
         var skipped: Int = 0
         var errors: [String] = []
+        // Desglose por empresa (nombre → conteo)
+        var byCompany: [String: CompanyResult] = [:]
+
+        var sortedCompanies: [CompanyResult] {
+            byCompany.values.sorted { $0.name < $1.name }
+        }
     }
 
     @MainActor
@@ -166,11 +188,19 @@ enum ExportImportService {
         return result
     }
 
-    // MARK: - Private merge logic
+    // MARK: - Merge lógico
 
     @MainActor
     private static func merge(dto: EncounterDTO, into context: ModelContext, result: inout ImportResult) throws {
-        // 1. ¿Ya existe el encounter?
+        // 1. Buscar o crear empresa (SIEMPRE, para garantizar la relación)
+        let company = findOrCreateCompany(
+            name: dto.companyName,
+            serviceType: dto.companyServiceType,
+            expectedPatients: dto.companyExpectedPatients,
+            context: context
+        )
+
+        // 2. ¿Ya existe el encounter?
         let eid = dto.id
         let encFetch = FetchDescriptor<Encounter>(predicate: #Predicate { $0.id == eid })
         let existing = try context.fetch(encFetch)
@@ -179,17 +209,21 @@ enum ExportImportService {
             // Solo actualiza si el remoto es más nuevo
             if dto.updatedAt > enc.updatedAt {
                 apply(dto: dto, to: enc, context: context)
+                enc.company = company
                 result.updated += 1
+                result.byCompany[dto.companyName, default: CompanyResult(name: dto.companyName)].updated += 1
             } else {
+                if enc.company == nil { enc.company = company }
                 result.skipped += 1
             }
             return
         }
 
-        // 2. Encounter nuevo — buscar o crear el paciente
+        // 3. Encounter nuevo
         let enc = Encounter()
         enc.id = dto.id
         apply(dto: dto, to: enc, context: context)
+        enc.company = company
 
         if let patDTO = dto.patient {
             enc.patient = findOrCreatePatient(dto: patDTO, context: context)
@@ -197,14 +231,45 @@ enum ExportImportService {
 
         context.insert(enc)
         result.inserted += 1
+        result.byCompany[dto.companyName, default: CompanyResult(name: dto.companyName)].inserted += 1
     }
+
+    // MARK: - Find or create Company
+
+    @MainActor
+    private static func findOrCreateCompany(
+        name: String,
+        serviceType: String,
+        expectedPatients: Int?,
+        context: ModelContext
+    ) -> Company {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let fetch = FetchDescriptor<Company>()
+        if let companies = try? context.fetch(fetch),
+           let existing = companies.first(where: {
+               $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalized
+           }) {
+            // Actualizar número de personas esperadas si el remoto tiene más info
+            if let remote = expectedPatients {
+                if existing.expectedPatients == nil || remote > (existing.expectedPatients ?? 0) {
+                    existing.expectedPatients = remote
+                    existing.updatedAt = Date()
+                }
+            }
+            return existing
+        }
+        let company = Company(name: name, serviceType: serviceType, expectedPatients: expectedPatients)
+        context.insert(company)
+        return company
+    }
+
+    // MARK: - Find or create Patient
 
     @MainActor
     private static func findOrCreatePatient(dto: PatientDTO, context: ModelContext) -> Patient {
         let pid = dto.id
         let fetch = FetchDescriptor<Patient>(predicate: #Predicate { $0.id == pid })
         if let existing = try? context.fetch(fetch), let p = existing.first {
-            // Actualiza datos si el remoto es más nuevo
             if dto.updatedAt > p.updatedAt {
                 p.firstName = dto.firstName
                 p.lastName = dto.lastName
@@ -215,6 +280,9 @@ enum ExportImportService {
                 p.personalEmail = dto.personalEmail
                 p.externalPatientNumber = dto.externalPatientNumber
                 p.updatedAt = dto.updatedAt
+                if let b64 = dto.profileImageBase64 {
+                    p.profileImageData = Data(base64Encoded: b64)
+                }
             }
             return p
         }
@@ -230,9 +298,14 @@ enum ExportImportService {
         p.cellPhone = dto.cellPhone
         p.personalEmail = dto.personalEmail
         p.externalPatientNumber = dto.externalPatientNumber
+        if let b64 = dto.profileImageBase64 {
+            p.profileImageData = Data(base64Encoded: b64)
+        }
         context.insert(p)
         return p
     }
+
+    // MARK: - Apply DTO → Encounter
 
     private static func apply(dto: EncounterDTO, to enc: Encounter, context: ModelContext) {
         enc.createdAt = dto.createdAt
@@ -292,6 +365,13 @@ enum ExportImportService {
         enc.signatureVideoFileName = dto.signatureVideoFileName
         enc.isGuarantee = dto.isGuarantee
         enc.guaranteeReason = dto.guaranteeReason
+        // Firmas (Base64 → Data)
+        if let b64 = dto.patientSignatureBase64 {
+            enc.patientSignatureData = Data(base64Encoded: b64)
+        }
+        if let b64 = dto.optometristSignatureBase64 {
+            enc.optometristSignatureData = Data(base64Encoded: b64)
+        }
     }
 }
 
@@ -305,6 +385,8 @@ private extension EncounterDTO {
         self.completedAt = enc.completedAt
         self.patient = enc.patient.map { PatientDTO(from: $0) }
         self.companyName = enc.companyName
+        self.companyServiceType = enc.company?.serviceType ?? ""
+        self.companyExpectedPatients = enc.company?.expectedPatients
         self.branch = enc.branch
         self.employeeNumber = enc.employeeNumber
         self.department = enc.department
@@ -358,6 +440,9 @@ private extension EncounterDTO {
         self.signatureVideoFileName = enc.signatureVideoFileName
         self.isGuarantee = enc.isGuarantee
         self.guaranteeReason = enc.guaranteeReason
+        // Firmas → Base64
+        self.patientSignatureBase64 = enc.patientSignatureData?.base64EncodedString()
+        self.optometristSignatureBase64 = enc.optometristSignatureData?.base64EncodedString()
     }
 }
 
@@ -374,5 +459,7 @@ private extension PatientDTO {
         self.cellPhone = p.cellPhone
         self.personalEmail = p.personalEmail
         self.externalPatientNumber = p.externalPatientNumber
+        // Foto de perfil → Base64
+        self.profileImageBase64 = p.profileImageData?.base64EncodedString()
     }
 }

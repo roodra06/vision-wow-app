@@ -19,7 +19,16 @@ struct SignatureCanvasView: UIViewRepresentable {
         return canvasView
     }
 
-    func updateUIView(_ uiView: PKCanvasView, context: Context) {}
+    func updateUIView(_ uiView: PKCanvasView, context: Context) {
+        // Mantener el delegate sincronizado ante rebuilds de SwiftUI
+        uiView.delegate = context.coordinator
+
+        // FIX: El UIScrollView padre retiene el primer toque por defecto
+        // (delaysContentTouches = true), lo que hace que el primer trazo no
+        // se registre en PKCanvasView. Deshabilitarlo permite que el canvas
+        // reciba el toque inmediatamente desde el primer trazo.
+        uiView.parentScrollView()?.delaysContentTouches = false
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onDrawingChanged: onDrawingChanged)
@@ -35,6 +44,22 @@ struct SignatureCanvasView: UIViewRepresentable {
         }
     }
 }
+
+// MARK: - UIView hierarchy helper
+
+private extension UIView {
+    /// Recorre la jerarquía hacia arriba buscando el primer UIScrollView padre.
+    func parentScrollView() -> UIScrollView? {
+        var current: UIView? = superview
+        while let view = current {
+            if let sv = view as? UIScrollView { return sv }
+            current = view.superview
+        }
+        return nil
+    }
+}
+
+// MARK: - PKCanvasView export
 
 extension PKCanvasView {
     func exportPNG() -> Data? {

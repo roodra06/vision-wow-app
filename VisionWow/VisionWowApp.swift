@@ -8,8 +8,16 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - Shared state para sincronización vía AirDrop
+
+@Observable final class AppSyncState {
+    var incomingURL: URL?
+}
+
 @main
 struct VisionWowApp: App {
+
+    @State private var syncState = AppSyncState()
 
     private let container: ModelContainer = {
 
@@ -60,6 +68,12 @@ struct VisionWowApp: App {
             RootView()
                 .preferredColorScheme(.light)
                 .modelContainer(container)
+                .environment(syncState)
+                .onOpenURL { url in
+                    // iOS abre esta URL cuando el usuario acepta un AirDrop con .vwsync
+                    guard url.pathExtension.lowercased() == "vwsync" else { return }
+                    syncState.incomingURL = url
+                }
         }
     }
 

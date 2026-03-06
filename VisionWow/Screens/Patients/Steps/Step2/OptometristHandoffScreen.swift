@@ -7,6 +7,7 @@ struct OptometristHandoffScreen: View {
     @State private var showOptometristModal = false
     @State private var localOptometristName: String = ""
     @State private var animate = false
+    @State private var showUnlockConfirm = false
 
     private var isLocked: Bool {
         !(encounter.optometristName ?? "")
@@ -41,6 +42,17 @@ struct OptometristHandoffScreen: View {
             withAnimation(.easeOut(duration: 0.6)) {
                 animate = true
             }
+        }
+        .alert("¿Cambiar optometrista?", isPresented: $showUnlockConfirm) {
+            Button("Cambiar nombre", role: .destructive) {
+                localOptometristName = (encounter.optometristName ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                encounter.optometristName = nil
+                showOptometristModal = true
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("El optometrista \"\(encounter.optometristName ?? "")\" ya fue asignado. ¿Deseas corregir el nombre?")
         }
         .sheet(isPresented: $showOptometristModal) {
             OptometristNameModal(
@@ -94,10 +106,20 @@ struct OptometristHandoffScreen: View {
                         .font(.system(size: 18))
                         .foregroundStyle(BrandColors.accent)
 
-                    Text("El optometrista ya fue registrado y no puede modificarse.")
+                    Text("El optometrista ya fue registrado.")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
+
+                Button {
+                    showUnlockConfirm = true
+                } label: {
+                    Label("Corregir nombre", systemImage: "pencil.circle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(BrandColors.primary)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
             }
         }
         .padding(28)

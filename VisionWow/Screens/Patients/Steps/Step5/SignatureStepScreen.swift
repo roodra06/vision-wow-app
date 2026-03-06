@@ -98,13 +98,15 @@ struct SignatureStepScreen: View {
             Text("El acceso a la cámara fue denegado. Puedes habilitarlo en Ajustes → VisionWow → Cámara. La firma se capturará sin video de respaldo.")
         }
         .onAppear {
-            // Ambas firmas presentes → completado directo
-            if encounter.patientSignatureData != nil && encounter.optometristSignatureData != nil {
+            let hasPatient = (encounter.patientSignatureData?.count ?? 0) > 100
+            let hasOptometrist = (encounter.optometristSignatureData?.count ?? 0) > 100
+            // Ambas firmas válidas (con datos reales) → completado directo
+            if hasPatient && hasOptometrist {
                 phase = .complete
                 return
             }
             // Solo firma del paciente → ir directo a fase optometrista
-            if encounter.patientSignatureData != nil {
+            if hasPatient {
                 phase = .optometrist
                 return
             }
@@ -112,9 +114,7 @@ struct SignatureStepScreen: View {
             startCameraIfPermitted()
         }
         .onDisappear {
-            if phase != .complete {
-                recorder.stopSession()
-            }
+            recorder.stopSession()
         }
     }
 

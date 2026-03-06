@@ -19,7 +19,8 @@ enum PDFDraw {
             .paragraphStyle: style
         ]
 
-        NSString(string: text).draw(in: rect, withAttributes: attrs)
+        // Todo el texto del expediente se imprime en mayúsculas
+        NSString(string: text.uppercased()).draw(in: rect, withAttributes: attrs)
     }
 
     static func drawLine(from: CGPoint, to: CGPoint, color: UIColor, width: CGFloat) {

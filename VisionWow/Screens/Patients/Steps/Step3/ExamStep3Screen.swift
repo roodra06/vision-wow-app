@@ -39,7 +39,7 @@ struct ExamStep3Screen: View {
     }
 
     private var todayFormatted: String {
-        DateUtils.formatShort(Date())
+        DateUtils.formatShort(encounter.followUpDate ?? Date())
     }
 
     var body: some View {
@@ -54,8 +54,10 @@ struct ExamStep3Screen: View {
             .padding(.bottom, 28)
         }
         .onAppear {
-            // Fecha de consulta bloqueada = hoy
-            encounter.followUpDate = Date()
+            // Solo fijar la fecha si es un encounter nuevo (sin fecha previa)
+            if encounter.followUpDate == nil {
+                encounter.followUpDate = Date()
+            }
         }
         .sheet(isPresented: $showLensPicker) {
             LensPickerSheet(lensType: $encounter.lensType, lensCost: $encounter.lensCost) { }
@@ -311,9 +313,8 @@ struct ExamStep3Screen: View {
                 }
             }
 
-            if encounter.diagnostico.isEmpty {
-                diagnosisSuggestionsView
-            }
+            // Sugerencias siempre visibles: tocando uno agrega/reemplaza el diagnóstico
+            diagnosisSuggestionsView
 
             Divider().opacity(0.35)
 
@@ -389,27 +390,48 @@ struct ExamStep3Screen: View {
 
     private var diagnosisSuggestionsView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Sugerencias:")
+            Text("Sugerencias rápidas:")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             FlowWrap(Self.diagnosisSuggestions) { suggestion in
+                let isSelected = encounter.diagnostico == suggestion
                 Button {
-                    encounter.diagnostico = suggestion
+                    if isSelected {
+                        encounter.diagnostico = ""
+                    } else {
+                        encounter.diagnostico = suggestion
+                    }
                 } label: {
-                    Text(suggestion)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(BrandColors.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(BrandColors.soft.opacity(0.75))
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(BrandColors.accent.opacity(0.35), lineWidth: 1)
-                        )
+                    HStack(spacing: 4) {
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        Text(suggestion)
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(isSelected ? .white : BrandColors.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        isSelected
+                            ? BrandColors.primary.opacity(0.85)
+                            : BrandColors.soft.opacity(0.75)
+                    )
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                isSelected
+                                    ? BrandColors.primary.opacity(0.0)
+                                    : BrandColors.accent.opacity(0.35),
+                                lineWidth: 1
+                            )
+                    )
                 }
                 .buttonStyle(.plain)
+                .animation(.easeInOut(duration: 0.15), value: isSelected)
             }
             .frame(minHeight: 72)
         }
