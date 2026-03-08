@@ -8,6 +8,8 @@ struct OptometristHandoffScreen: View {
     @State private var localOptometristName: String = ""
     @State private var animate = false
     @State private var showUnlockConfirm = false
+    @State private var showFaceAnalysis = false
+    @State private var detectedFaceShape: FaceShape?
 
     private var isLocked: Bool {
         !(encounter.optometristName ?? "")
@@ -66,6 +68,11 @@ struct OptometristHandoffScreen: View {
                 }
             )
             .presentationDetents([PresentationDetent.medium])
+        }
+        .sheet(isPresented: $showFaceAnalysis) {
+            FaceAnalysisSheet {
+                detectedFaceShape = $0
+            }
         }
     }
 
@@ -205,6 +212,15 @@ struct OptometristHandoffScreen: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
+
+                Divider().padding(.vertical, 4)
+
+                // ── Analizador de rostro mientras esperas ──
+                if let shape = detectedFaceShape {
+                    faceAnalysisDoneCard(shape: shape)
+                } else {
+                    faceAnalysisInviteCard
+                }
             }
         }
         .padding(28)
@@ -219,6 +235,95 @@ struct OptometristHandoffScreen: View {
         )
         .opacity(animate ? 1 : 0)
         .offset(y: animate ? 0 : 20)
+    }
+
+    // MARK: - Face Analysis Invite
+
+    private var faceAnalysisInviteCard: some View {
+        Button { showFaceAnalysis = true } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(BrandColors.primary.opacity(0.12))
+                        .frame(width: 46, height: 46)
+                    Image(systemName: "faceid")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(BrandColors.primary)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Mientras esperas…")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(BrandColors.secondary)
+                    Text("Descubre qué armazón favorece\nla forma de tu rostro")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(BrandColors.primary.opacity(0.7))
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(BrandColors.primary.opacity(0.07))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(BrandColors.primary.opacity(0.22), lineWidth: 1.5)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Face Analysis Result Mini-card
+
+    private func faceAnalysisDoneCard(shape: FaceShape) -> some View {
+        Button { showFaceAnalysis = true } label: {
+            HStack(spacing: 14) {
+                Text(shape.emoji)
+                    .font(.system(size: 34))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text("Rostro \(shape.rawValue)")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(BrandColors.secondary)
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.green)
+                    }
+                    Text(shape.recommendedFrames.prefix(2).map(\.name).joined(separator: " · "))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Text("Ver más")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(BrandColors.primary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(BrandColors.primary.opacity(0.10))
+                    .clipShape(Capsule())
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.green.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.green.opacity(0.25), lineWidth: 1.5)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Button
