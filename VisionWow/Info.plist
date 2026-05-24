@@ -6,6 +6,8 @@
 	<string>Vision Wow necesita acceso a la cámara para tomar la foto de perfil del paciente y grabar video de seguridad durante la firma.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Se requiere acceso al micrófono durante la grabación de video de firma del paciente.</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

@@ -42,6 +42,30 @@ struct ExamStep3Screen: View {
         DateUtils.formatShort(encounter.followUpDate ?? Date())
     }
 
+    /// Peor esfera entre OD y OS (mayor valor absoluto, conservando signo).
+    private var rxSphWorstEye: Double? {
+        let od = Double(encounter.rxOdSph)
+        let os = Double(encounter.rxOsSph)
+        switch (od, os) {
+        case (let a?, let b?): return abs(a) >= abs(b) ? a : b
+        case (let a?, nil):    return a
+        case (nil, let b?):    return b
+        default:               return nil
+        }
+    }
+
+    /// Mayor valor absoluto de cilindro entre OD y OS.
+    private var rxCylWorstEye: Double? {
+        let od = Double(encounter.rxOdCyl).map(abs)
+        let os = Double(encounter.rxOsCyl).map(abs)
+        switch (od, os) {
+        case (let a?, let b?): return max(a, b)
+        case (let a?, nil):    return a
+        case (nil, let b?):    return b
+        default:               return nil
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
@@ -60,7 +84,16 @@ struct ExamStep3Screen: View {
             }
         }
         .sheet(isPresented: $showLensPicker) {
-            LensPickerSheet(lensType: $encounter.lensType, lensCost: $encounter.lensCost) { }
+            LensPickerSheet(
+                lensType: $encounter.lensType,
+                lensCost: $encounter.lensCost,
+                rxSph: rxSphWorstEye,
+                rxCylAbs: rxCylWorstEye
+            ) { salePrice in
+                if salePrice > 0 {
+                    encounter.payTotal = "\(salePrice)"
+                }
+            }
         }
     }
 
@@ -178,25 +211,37 @@ struct ExamStep3Screen: View {
 
             HStack(spacing: 12) {
                 FieldRow("OD S/C", required: true, error: errors["vaOdSc"]) {
-                    iconTextField(systemName: "eye", text: $encounter.vaOdSc, isError: errors["vaOdSc"] != nil)
+                    VisionPickerField(icon: "eye", options: VisionOptions.distantAcuity,
+                                      selection: $encounter.vaOdSc, isError: errors["vaOdSc"] != nil,
+                                      kind: .distantAcuity)
                 }
                 FieldRow("OI S/C", required: true, error: errors["vaOsSc"]) {
-                    iconTextField(systemName: "eye", text: $encounter.vaOsSc, isError: errors["vaOsSc"] != nil)
+                    VisionPickerField(icon: "eye", options: VisionOptions.distantAcuity,
+                                      selection: $encounter.vaOsSc, isError: errors["vaOsSc"] != nil,
+                                      kind: .distantAcuity)
                 }
                 FieldRow("AO S/C", required: true, error: errors["vaOuSc"]) {
-                    iconTextField(systemName: "eye", text: $encounter.vaOuSc, isError: errors["vaOuSc"] != nil)
+                    VisionPickerField(icon: "eye", options: VisionOptions.distantAcuity,
+                                      selection: $encounter.vaOuSc, isError: errors["vaOuSc"] != nil,
+                                      kind: .distantAcuity)
                 }
             }
 
             HStack(spacing: 12) {
                 FieldRow("OD C/C", required: true, error: errors["vaOdCc"]) {
-                    iconTextField(systemName: "eyeglasses", text: $encounter.vaOdCc, isError: errors["vaOdCc"] != nil)
+                    VisionPickerField(icon: "eyeglasses", options: VisionOptions.distantAcuity,
+                                      selection: $encounter.vaOdCc, isError: errors["vaOdCc"] != nil,
+                                      kind: .distantAcuity)
                 }
                 FieldRow("OI C/C", required: true, error: errors["vaOsCc"]) {
-                    iconTextField(systemName: "eyeglasses", text: $encounter.vaOsCc, isError: errors["vaOsCc"] != nil)
+                    VisionPickerField(icon: "eyeglasses", options: VisionOptions.distantAcuity,
+                                      selection: $encounter.vaOsCc, isError: errors["vaOsCc"] != nil,
+                                      kind: .distantAcuity)
                 }
                 FieldRow("AO C/C", required: true, error: errors["vaOuCc"]) {
-                    iconTextField(systemName: "eyeglasses", text: $encounter.vaOuCc, isError: errors["vaOuCc"] != nil)
+                    VisionPickerField(icon: "eyeglasses", options: VisionOptions.distantAcuity,
+                                      selection: $encounter.vaOuCc, isError: errors["vaOuCc"] != nil,
+                                      kind: .distantAcuity)
                 }
             }
 
@@ -209,25 +254,37 @@ struct ExamStep3Screen: View {
 
             HStack(spacing: 12) {
                 FieldRow("OD S/C", required: true, error: errors["nearVaOdSc"]) {
-                    iconTextField(systemName: "eye", text: $encounter.nearVaOdSc, isError: errors["nearVaOdSc"] != nil)
+                    VisionPickerField(icon: "eye", options: VisionOptions.nearAcuity,
+                                      selection: $encounter.nearVaOdSc, isError: errors["nearVaOdSc"] != nil,
+                                      kind: .nearAcuity)
                 }
                 FieldRow("OI S/C", required: true, error: errors["nearVaOsSc"]) {
-                    iconTextField(systemName: "eye", text: $encounter.nearVaOsSc, isError: errors["nearVaOsSc"] != nil)
+                    VisionPickerField(icon: "eye", options: VisionOptions.nearAcuity,
+                                      selection: $encounter.nearVaOsSc, isError: errors["nearVaOsSc"] != nil,
+                                      kind: .nearAcuity)
                 }
                 FieldRow("AO S/C", required: true, error: errors["nearVaOuSc"]) {
-                    iconTextField(systemName: "eye", text: $encounter.nearVaOuSc, isError: errors["nearVaOuSc"] != nil)
+                    VisionPickerField(icon: "eye", options: VisionOptions.nearAcuity,
+                                      selection: $encounter.nearVaOuSc, isError: errors["nearVaOuSc"] != nil,
+                                      kind: .nearAcuity)
                 }
             }
 
             HStack(spacing: 12) {
                 FieldRow("OD C/C", required: true, error: errors["nearVaOdCc"]) {
-                    iconTextField(systemName: "eyeglasses", text: $encounter.nearVaOdCc, isError: errors["nearVaOdCc"] != nil)
+                    VisionPickerField(icon: "eyeglasses", options: VisionOptions.nearAcuity,
+                                      selection: $encounter.nearVaOdCc, isError: errors["nearVaOdCc"] != nil,
+                                      kind: .nearAcuity)
                 }
                 FieldRow("OI C/C", required: true, error: errors["nearVaOsCc"]) {
-                    iconTextField(systemName: "eyeglasses", text: $encounter.nearVaOsCc, isError: errors["nearVaOsCc"] != nil)
+                    VisionPickerField(icon: "eyeglasses", options: VisionOptions.nearAcuity,
+                                      selection: $encounter.nearVaOsCc, isError: errors["nearVaOsCc"] != nil,
+                                      kind: .nearAcuity)
                 }
                 FieldRow("AO C/C", required: true, error: errors["nearVaOuCc"]) {
-                    iconTextField(systemName: "eyeglasses", text: $encounter.nearVaOuCc, isError: errors["nearVaOuCc"] != nil)
+                    VisionPickerField(icon: "eyeglasses", options: VisionOptions.nearAcuity,
+                                      selection: $encounter.nearVaOuCc, isError: errors["nearVaOuCc"] != nil,
+                                      kind: .nearAcuity)
                 }
             }
 
@@ -242,16 +299,24 @@ struct ExamStep3Screen: View {
 
             HStack(spacing: 12) {
                 FieldRow("SPH", required: true, error: errors["rxOdSph"]) {
-                    iconTextField(systemName: "plus.forwardslash.minus", text: $encounter.rxOdSph, isError: errors["rxOdSph"] != nil)
+                    VisionPickerField(icon: "plus.forwardslash.minus", options: VisionOptions.sph,
+                                      selection: $encounter.rxOdSph, isError: errors["rxOdSph"] != nil,
+                                      placeholder: "0.00", kind: .sph)
                 }
                 FieldRow("CYL", required: true, error: errors["rxOdCyl"]) {
-                    iconTextField(systemName: "circlebadge.2.fill", text: $encounter.rxOdCyl, isError: errors["rxOdCyl"] != nil)
+                    VisionPickerField(icon: "circlebadge.2.fill", options: VisionOptions.cyl,
+                                      selection: $encounter.rxOdCyl, isError: errors["rxOdCyl"] != nil,
+                                      placeholder: "0.00", kind: .cyl)
                 }
                 FieldRow("AXIS", required: true, error: errors["rxOdAxis"]) {
-                    iconTextField(systemName: "dial.high.fill", text: $encounter.rxOdAxis, isError: errors["rxOdAxis"] != nil)
+                    AxisPickerField(icon: "dial.high.fill",
+                                   selection: $encounter.rxOdAxis,
+                                   isError: errors["rxOdAxis"] != nil)
                 }
                 FieldRow("ADD", required: false, error: errors["rxOdAdd"]) {
-                    iconTextField(systemName: "plus.circle.fill", text: $encounter.rxOdAdd, isError: errors["rxOdAdd"] != nil)
+                    VisionPickerField(icon: "plus.circle.fill", options: VisionOptions.add,
+                                      selection: $encounter.rxOdAdd, isError: errors["rxOdAdd"] != nil,
+                                      placeholder: "—", kind: .add)
                 }
             }
 
@@ -259,16 +324,24 @@ struct ExamStep3Screen: View {
 
             HStack(spacing: 12) {
                 FieldRow("SPH", required: true, error: errors["rxOsSph"]) {
-                    iconTextField(systemName: "plus.forwardslash.minus", text: $encounter.rxOsSph, isError: errors["rxOsSph"] != nil)
+                    VisionPickerField(icon: "plus.forwardslash.minus", options: VisionOptions.sph,
+                                      selection: $encounter.rxOsSph, isError: errors["rxOsSph"] != nil,
+                                      placeholder: "0.00", kind: .sph)
                 }
                 FieldRow("CYL", required: true, error: errors["rxOsCyl"]) {
-                    iconTextField(systemName: "circlebadge.2.fill", text: $encounter.rxOsCyl, isError: errors["rxOsCyl"] != nil)
+                    VisionPickerField(icon: "circlebadge.2.fill", options: VisionOptions.cyl,
+                                      selection: $encounter.rxOsCyl, isError: errors["rxOsCyl"] != nil,
+                                      placeholder: "0.00", kind: .cyl)
                 }
                 FieldRow("AXIS", required: true, error: errors["rxOsAxis"]) {
-                    iconTextField(systemName: "dial.high.fill", text: $encounter.rxOsAxis, isError: errors["rxOsAxis"] != nil)
+                    AxisPickerField(icon: "dial.high.fill",
+                                   selection: $encounter.rxOsAxis,
+                                   isError: errors["rxOsAxis"] != nil)
                 }
                 FieldRow("ADD", required: false, error: errors["rxOsAdd"]) {
-                    iconTextField(systemName: "plus.circle.fill", text: $encounter.rxOsAdd, isError: errors["rxOsAdd"] != nil)
+                    VisionPickerField(icon: "plus.circle.fill", options: VisionOptions.add,
+                                      selection: $encounter.rxOsAdd, isError: errors["rxOsAdd"] != nil,
+                                      placeholder: "—", kind: .add)
                 }
             }
 
@@ -317,6 +390,7 @@ struct ExamStep3Screen: View {
             diagnosisSuggestionsView
 
             Divider().opacity(0.35)
+                .padding(.top, 4)
 
             // =========================================================
             // 6) FECHA DE CONSULTA (bloqueada a hoy)
@@ -388,53 +462,79 @@ struct ExamStep3Screen: View {
 
     // MARK: - Diagnosis suggestions
 
-    private var diagnosisSuggestionsView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Sugerencias rápidas:")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+    private let suggestionColumns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
 
-            FlowWrap(Self.diagnosisSuggestions) { suggestion in
-                let isSelected = encounter.diagnostico == suggestion
-                Button {
-                    if isSelected {
-                        encounter.diagnostico = ""
-                    } else {
-                        encounter.diagnostico = suggestion
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        if isSelected {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        Text(suggestion)
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundStyle(isSelected ? .white : BrandColors.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        isSelected
-                            ? BrandColors.primary.opacity(0.85)
-                            : BrandColors.soft.opacity(0.75)
-                    )
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(
-                                isSelected
-                                    ? BrandColors.primary.opacity(0.0)
-                                    : BrandColors.accent.opacity(0.35),
-                                lineWidth: 1
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
-                .animation(.easeInOut(duration: 0.15), value: isSelected)
+    private var diagnosisSuggestionsView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(BrandColors.accent)
+                Text("Sugerencias rápidas")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
-            .frame(minHeight: 72)
+
+            LazyVGrid(columns: suggestionColumns, spacing: 8) {
+                ForEach(Self.diagnosisSuggestions, id: \.self) { suggestion in
+                    let isSelected = encounter.diagnostico == suggestion
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            encounter.diagnostico = isSelected ? "" : suggestion
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isSelected {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(.white)
+                            } else {
+                                Image(systemName: "circle")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(BrandColors.accent.opacity(0.6))
+                            }
+                            Text(suggestion)
+                                .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        }
+                        .foregroundStyle(isSelected ? .white : BrandColors.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(isSelected
+                                      ? BrandColors.primary.opacity(0.88)
+                                      : BrandColors.soft.opacity(0.70))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(
+                                            isSelected
+                                                ? BrandColors.primary.opacity(0.0)
+                                                : BrandColors.accent.opacity(0.25),
+                                            lineWidth: 1
+                                        )
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .animation(.easeInOut(duration: 0.15), value: isSelected)
+                }
+            }
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.black.opacity(0.025))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(BrandColors.accent.opacity(0.12), lineWidth: 1)
+                )
+        )
     }
 
     // MARK: - Locked date field

@@ -12,7 +12,7 @@ enum PDFLayout {
 
     static let marginX: CGFloat = 22
     static let marginTop: CGFloat = 18
-    static let marginBottom: CGFloat = 18
+    static let marginBottom: CGFloat = 56   // reserva espacio para PDFFooter (46 pt) + margen
 
     static let contentWidth: CGFloat = pageRectLetterPortrait.width - (marginX * 2)
 }

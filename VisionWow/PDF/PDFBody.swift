@@ -1,8 +1,6 @@
 //
 //  PDFBody.swift
-//  VisionWow
-//
-//  Created by Rodrigo Marcos on 28/12/25.
+//  VisionWow — Orquestador de secciones del cuerpo del documento
 //
 import UIKit
 
@@ -20,36 +18,40 @@ enum PDFBody {
 
         var yy = y
 
-        // Garantía badge
-        if encounter.isGuarantee {
-            let reason = encounter.guaranteeReason ?? ""
-            let text = reason.isEmpty ? "GARANTÍA" : "GARANTÍA — \(reason)"
-            PDFDraw.drawText(text,
-                             in: CGRect(x: x, y: yy, width: w, height: 18),
-                             font: .systemFont(ofSize: 11, weight: .bold),
-                             color: UIColor.systemRed,
-                             alignment: .center)
-            yy += 22
-        }
-
-        yy = PDFSections.drawSectionTitle("HISTORIA CLÍNICA", x: x, y: yy, w: w)
-        yy += 6
-
-        yy = PDFClinicalHistory.drawClinicalHistoryGrid(encounter: encounter, x: x, y: yy, w: w)
-        yy += 10
-
+        // ── Datos personales (nombre del paciente va aquí, sin franja separada) ──
+        yy = PDFSections.drawSectionTitle("DATOS PERSONALES", x: x, y: yy, w: w)
         yy = PDFPersonalData.drawPersonalDataGrid(encounter: encounter, x: x, y: yy, w: w)
-        yy += 10
+        yy += 8
 
+        // ── Historia clínica / datos laborales ───────────────────────
+        yy = PDFSections.drawSectionTitle("HISTORIA CLÍNICA", x: x, y: yy, w: w)
+        yy = PDFClinicalHistory.drawClinicalHistoryGrid(encounter: encounter, x: x, y: yy, w: w)
+        yy += 8
+
+        // ── Antecedentes y síntomas ───────────────────────────────────
+        // Necesita ~260 pt; forzar nueva página si no hay espacio
+        if yy + 260 > pageRect.height - PDFLayout.marginBottom {
+            ctx.beginPage()
+            yy = PDFLayout.marginTop
+        }
         yy = PDFAntecedents.drawAntecedentsGrid(encounter: encounter, x: x, y: yy, w: w)
-        yy += 10
+        yy += 8
 
-        yy = PDFExam.drawExamBlock(encounter: encounter, x: x, y: yy, w: w, pageRect: pageRect, ctx: ctx)
-        yy += 10
+        // ── Examen visual ─────────────────────────────────────────────
+        yy = PDFExam.drawExamBlock(encounter: encounter,
+                                   x: x, y: yy, w: w,
+                                   pageRect: pageRect, ctx: ctx)
+        yy += 8
 
-        yy = PDFPayment.drawPaymentBlock(encounter: encounter, x: x, y: yy, w: w, pageRect: pageRect, ctx: ctx)
+        // ── Pago ──────────────────────────────────────────────────────
+        yy = PDFPayment.drawPaymentBlock(encounter: encounter,
+                                         x: x, y: yy, w: w,
+                                         pageRect: pageRect, ctx: ctx)
+        yy += 12
+
+        // ── Pie de página ─────────────────────────────────────────────
+        PDFFooter.draw(pageRect: pageRect, x: x, w: w, ctx: ctx)
 
         return yy
     }
 }
-

@@ -46,7 +46,7 @@ struct OptometristHandoffScreen: View {
             }
         }
         .alert("¿Cambiar optometrista?", isPresented: $showUnlockConfirm) {
-            Button("Cambiar nombre", role: .destructive) {
+            Button("Cambiar", role: .destructive) {
                 localOptometristName = (encounter.optometristName ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 encounter.optometristName = nil
@@ -54,7 +54,7 @@ struct OptometristHandoffScreen: View {
             }
             Button("Cancelar", role: .cancel) {}
         } message: {
-            Text("El optometrista \"\(encounter.optometristName ?? "")\" ya fue asignado. ¿Deseas corregir el nombre?")
+            Text("\"\(encounter.optometristName ?? "")\" ya está asignado. ¿Deseas seleccionar otro?")
         }
         .sheet(isPresented: $showOptometristModal) {
             OptometristNameModal(
@@ -67,7 +67,7 @@ struct OptometristHandoffScreen: View {
                     onContinueToAntecedents()
                 }
             )
-            .presentationDetents([PresentationDetent.medium])
+            .presentationDetents([.height(380), .medium])
         }
         .sheet(isPresented: $showFaceAnalysis) {
             FaceAnalysisSheet {
@@ -127,6 +127,15 @@ struct OptometristHandoffScreen: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 2)
+
+                Divider().padding(.vertical, 4)
+
+                // ── Analizador de rostro (siempre visible) ──
+                if let shape = detectedFaceShape {
+                    faceAnalysisDoneCard(shape: shape)
+                } else {
+                    faceAnalysisInviteCard
+                }
             }
         }
         .padding(28)
@@ -358,121 +367,160 @@ struct OptometristHandoffScreen: View {
     }
 }
 
-// MARK: - Modal Premium
+// MARK: - Catálogo de optometristas registrados
+
+struct OptometristEntry: Identifiable {
+    let id = UUID()
+    let name: String
+    let cedula: String
+    let initials: String
+}
+
+private let registeredOptometrists: [OptometristEntry] = [
+    OptometristEntry(
+        name: "Wendy Yemely Mazariego González",
+        cedula: "14168592",
+        initials: "WM"
+    )
+    // Agrega más optometristas aquí
+]
+
+// MARK: - Modal Picker de Optometrista
+
 private struct OptometristNameModal: View {
     @Binding var name: String
     let onConfirm: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @FocusState private var focused: Bool
+    @State private var selected: OptometristEntry? = nil
     @State private var animate = false
 
     var body: some View {
         ZStack {
-            BrandColors.backgroundGradient
-                .ignoresSafeArea()
+            BrandColors.backgroundGradient.ignoresSafeArea()
 
-            VStack {
-                Spacer()
+            VStack(spacing: 0) {
+                // Título
+                VStack(spacing: 6) {
+                    Text("¿Quién atiende?")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Text("Selecciona al optometrista que realizará la consulta")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 32)
+                .padding(.bottom, 24)
+                .padding(.horizontal, 24)
 
-                modalCard
+                // Lista de optometristas
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ForEach(registeredOptometrists) { opt in
+                            optometristCard(opt)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 24)
+                }
 
-                Spacer()
+                // Botón Cancelar
+                Button("Cancelar") { dismiss() }
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 28)
             }
-            .padding(.horizontal, 24)
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 0.4)) {
-                animate = true
+            // Pre-seleccionar si ya había un nombre guardado
+            if let match = registeredOptometrists.first(where: {
+                $0.name.lowercased() == name.lowercased()
+            }) {
+                selected = match
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                focused = true
-            }
+            withAnimation(.easeOut(duration: 0.35)) { animate = true }
         }
     }
 
-    private var modalCard: some View {
-        VStack(spacing: 24) {
+    @ViewBuilder
+    private func optometristCard(_ opt: OptometristEntry) -> some View {
+        let isSelected = selected?.id == opt.id
 
-            // Header
-            VStack(spacing: 8) {
-                Text("Asignar Optometrista")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(.primary)
-
-                Text("Ingresa el nombre del profesional que continuará la atención.")
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                selected = opt
             }
-
-            // Campo
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Nombre completo")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 10) {
-                    Image(systemName: "stethoscope")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(BrandColors.secondary)
-
-                    TextField("Ej. Lic. Ana Pérez", text: $name)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .focused($focused)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 14)
-                .background(Color.black.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(BrandColors.accent.opacity(0.20), lineWidth: 1)
-                )
+            name = opt.name
+            // Pequeño delay para que se vea la selección antes de cerrar
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                onConfirm()
             }
-
-            // Botones
-            VStack(spacing: 12) {
-
-                Button {
-                    onConfirm()
-                } label: {
-                    Text("Continuar")
-                        .font(.system(size: 17, weight: .bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .foregroundStyle(.white)
-                        .background(
-                            LinearGradient(
-                                colors: [BrandColors.primary, BrandColors.secondary],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
+        } label: {
+            HStack(spacing: 16) {
+                // Avatar con iniciales
+                ZStack {
+                    Circle()
+                        .fill(
+                            isSelected
+                                ? LinearGradient(colors: [BrandColors.primary, BrandColors.secondary],
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing)
+                                : LinearGradient(colors: [BrandColors.primary.opacity(0.12),
+                                                           BrandColors.secondary.opacity(0.08)],
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing)
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .opacity(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.6 : 1)
+                        .frame(width: 52, height: 52)
 
-                Button("Cancelar") {
-                    dismiss()
+                    Text(opt.initials)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(isSelected ? .white : BrandColors.primary)
                 }
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.secondary)
+
+                // Nombre + cédula
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(opt.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+
+                    HStack(spacing: 5) {
+                        Image(systemName: "stethoscope")
+                            .font(.system(size: 11))
+                            .foregroundStyle(BrandColors.accent)
+                        Text("Céd. Prof. \(opt.cedula)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(BrandColors.accent)
+                    }
+                }
+
+                Spacer()
+
+                // Check de selección
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22))
+                    .foregroundStyle(isSelected ? BrandColors.primary : Color.secondary.opacity(0.3))
             }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isSelected
+                          ? BrandColors.primary.opacity(0.07)
+                          : Color.white.opacity(0.90))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(
+                                isSelected ? BrandColors.primary.opacity(0.40) : Color.clear,
+                                lineWidth: 1.5
+                            )
+                    )
+                    .shadow(color: isSelected
+                            ? BrandColors.primary.opacity(0.12)
+                            : Color.black.opacity(0.05),
+                            radius: isSelected ? 12 : 6, x: 0, y: 4)
+            )
         }
-        .padding(28)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(Color.white.opacity(0.95))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .stroke(BrandColors.accent.opacity(0.15), lineWidth: 1)
-                )
-                .shadow(color: BrandColors.secondary.opacity(0.15),
-                        radius: 30, x: 0, y: 20)
-        )
+        .buttonStyle(.plain)
         .scaleEffect(animate ? 1 : 0.95)
         .opacity(animate ? 1 : 0)
     }

@@ -22,6 +22,10 @@ struct OpticaPatientsScreen: View {
     @State private var showDeleteConfirm2 = false
     @State private var deleteError: String? = nil
 
+    // 📄 Nota de venta
+    @State private var isGeneratingNota = false
+    @State private var notaShareURL: URL? = nil
+
     private var opticaCompany: Company {
         WalkInCompanyStore.ensure(modelContext: modelContext)
     }
@@ -84,20 +88,23 @@ struct OpticaPatientsScreen: View {
                     .blur(radius: 8)
                     .offset(x: -140, y: 300)
 
-                VStack(spacing: 12) {
+                VStack(spacing: 0) {
 
+                    // ─── Título ───
                     Text("Pacientes · Óptica")
                         .font(.system(size: 30, weight: .semibold, design: .rounded))
                         .foregroundStyle(BrandColors.secondary)
-                        .padding(.top, 6)
+                        .padding(.top, 20)
+                        .padding(.bottom, 12)
                         .entrance(delay: 0.05)
 
                     // ─── Buscador ───
                     searchField
                         .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
                         .entrance(delay: 0.10)
 
-                    // ─── Resultados de búsqueda ───
+                    // ─── Lista (ocupa todo el espacio entre buscador y botones) ───
                     if isSearching {
                         if filteredPatients.isEmpty {
                             VStack(spacing: 6) {
@@ -108,7 +115,7 @@ struct OpticaPatientsScreen: View {
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(.top, 10)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
                             ScrollView {
                                 LazyVStack(spacing: 10) {
@@ -122,12 +129,11 @@ struct OpticaPatientsScreen: View {
                                         .buttonStyle(.plain)
                                     }
                                 }
-                                .padding(.top, 4)
                                 .padding(.horizontal, 16)
+                                .padding(.top, 8)
+                                .padding(.bottom, 180)
                             }
                         }
-
-                    // ─── Lista regular (flujo original) ───
                     } else if opticaEncounters.isEmpty {
                         VStack(spacing: 8) {
                             Text("Aún no hay pacientes externos.")
@@ -135,8 +141,10 @@ struct OpticaPatientsScreen: View {
                             Text("Agrega tu primer paciente para iniciar su historial.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
                         }
-                        .padding(.top, 10)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.horizontal, 32)
                     } else {
                         ScrollView {
                             LazyVStack(spacing: 10) {
@@ -151,82 +159,86 @@ struct OpticaPatientsScreen: View {
                                     .entrance(delay: 0.10 + Double(index) * 0.06)
                                 }
                             }
-                            .padding(.top, 10)
                             .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .padding(.bottom, 180)
                         }
                     }
+                }
+                // ─── Botones siempre visibles al fondo ───
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    VStack(spacing: 10) {
+                        Divider()
+                            .padding(.bottom, 4)
 
-                    Spacer()
-
-                    // CTA Reporte de ventas (óptica, con filtro de fechas)
-                    NavigationLink {
-                        ReportAuthGate {
-                            SalesReportScreen(
-                                companyName: WalkInCompanyStore.name,
-                                encounters: opticaEncounters,
-                                showDateFilter: true
-                            )
-                        }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "chart.bar.doc.horizontal")
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("Reporte de ventas")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                        .foregroundStyle(BrandColors.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .padding(.horizontal, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.white.opacity(0.88))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .stroke(BrandColors.secondary.opacity(0.20), lineWidth: 1)
+                        // CTA Reporte de ventas
+                        NavigationLink {
+                            ReportAuthGate {
+                                SalesReportScreen(
+                                    companyName: WalkInCompanyStore.name,
+                                    encounters: opticaEncounters,
+                                    showDateFilter: true
                                 )
-                        )
-                        .shadow(color: BrandColors.secondary.opacity(0.08), radius: 10, x: 0, y: 6)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: 340)
-                    .padding(.horizontal, 16)
-                    .entrance(delay: 0.20)
-
-                    // CTA Agregar paciente
-                    NavigationLink {
-                        NewEncounterWizardScreen(company: opticaCompany)
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "person.badge.plus")
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("Agregar paciente")
-                                .font(.system(size: 16, weight: .semibold))
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "chart.bar.doc.horizontal")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Reporte de ventas")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundStyle(BrandColors.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .padding(.horizontal, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(Color.white.opacity(0.88))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .stroke(BrandColors.secondary.opacity(0.20), lineWidth: 1)
+                                    )
+                            )
+                            .shadow(color: BrandColors.secondary.opacity(0.08), radius: 10, x: 0, y: 6)
                         }
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .padding(.horizontal, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(BrandColors.primary)
-                        )
-                        .shadow(color: BrandColors.primary.opacity(0.22), radius: 10, x: 0, y: 6)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: 340)
-                    .padding(.horizontal, 16)
-                    .entrance(delay: 0.26)
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: 340)
+                        .entrance(delay: 0.20)
 
-                    SecondaryButton(title: "Volver") {
-                        dismiss()
+                        // CTA Agregar paciente
+                        NavigationLink {
+                            NewEncounterWizardScreen(company: opticaCompany)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "person.badge.plus")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Agregar paciente")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .padding(.horizontal, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(BrandColors.primary)
+                            )
+                            .shadow(color: BrandColors.primary.opacity(0.22), radius: 10, x: 0, y: 6)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: 340)
+                        .entrance(delay: 0.26)
+
+                        SecondaryButton(title: "Volver") {
+                            dismiss()
+                        }
+                        .frame(maxWidth: 340)
+                        .entrance(delay: 0.32)
                     }
-                    .frame(maxWidth: 340)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 18)
-                    .entrance(delay: 0.32)
+                    .background(.ultraThinMaterial)
                 }
-                .padding(.top, 14)
             }
             .onAppear {
                 _ = WalkInCompanyStore.ensure(modelContext: modelContext)
@@ -260,6 +272,16 @@ struct OpticaPatientsScreen: View {
                 }
             } message: {
                 Text("¿Eliminar definitivamente este paciente?")
+            }
+
+            // 📄 Share sheet de nota de venta (URL directa → rápido en WhatsApp)
+            .sheet(isPresented: Binding(
+                get: { notaShareURL != nil },
+                set: { if !$0 { notaShareURL = nil } }
+            )) {
+                if let url = notaShareURL {
+                    ReportShareSheet(activityItems: [url])
+                }
             }
         }
     }
@@ -409,6 +431,20 @@ struct OpticaPatientsScreen: View {
 
             Spacer(minLength: 8)
 
+            // 📄 Botón nota de venta
+            Button {
+                compartirNota(encounter: encounter)
+            } label: {
+                CircleIconButton(
+                    systemName: isGeneratingNota ? "arrow.trianglehead.clockwise" : "doc.text",
+                    fill: BrandColors.secondary.opacity(0.10),
+                    stroke: BrandColors.secondary.opacity(0.25),
+                    iconColor: BrandColors.secondary
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isGeneratingNota)
+
             // 🔴 Botón eliminar
             Button {
                 selectedEncounterForDelete = encounter
@@ -437,6 +473,27 @@ struct OpticaPatientsScreen: View {
     }
 
     // MARK: - Actions
+
+    private func compartirNota(encounter: Encounter) {
+        guard !isGeneratingNota else { return }
+        isGeneratingNota = true
+        let snap = encounter   // captura para el hilo de fondo
+        DispatchQueue.global(qos: .userInitiated).async {
+            let pdfData  = NotaVentaPDFRenderer.render(encounter: snap)
+            let folio    = NotaVentaPDFRenderer.folio(for: snap)
+            let nombre   = (snap.patient?.firstName ?? "Nota")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: " ", with: "_")
+            let fileName = "NotaVenta_\(nombre)_\(folio).pdf"
+            let url      = FileManager.default.temporaryDirectory
+                               .appendingPathComponent(fileName)
+            try? pdfData.write(to: url, options: .atomic)
+            DispatchQueue.main.async {
+                isGeneratingNota = false
+                notaShareURL     = url
+            }
+        }
+    }
 
     private func deleteEncounter(_ e: Encounter) {
         modelContext.delete(e)

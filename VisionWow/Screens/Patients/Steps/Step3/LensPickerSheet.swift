@@ -164,11 +164,144 @@ enum LensThickness: String, CaseIterable {
     }
 }
 
+// MARK: - Treatment types (Visión Sencilla)
+
+enum LensTreatmentType: String, CaseIterable {
+    case transparente   = "Transparente"
+    case antiReflejante = "Anti-reflejante"
+    case blueRay        = "Blue-ray"
+    case fotoCromatico  = "Foto-cromático"
+    case fotoBlue       = "Foto-blue"
+    case polarizado     = "Polarizado"
+    case entintado      = "Entintado"
+
+    var subtitle: String {
+        switch self {
+        case .transparente:   return "CR-39 · Mica clásica sin tratamiento adicional"
+        case .antiReflejante: return "Elimina reflejos y reduce la fatiga visual"
+        case .blueRay:        return "Filtra la luz azul-violeta de pantallas y LED"
+        case .fotoCromatico:  return "Se oscurece automáticamente con la luz solar"
+        case .fotoBlue:       return "Foto-cromático con filtro anti luz azul"
+        case .polarizado:     return "Ideal para sol · Elimina el deslumbramiento"
+        case .entintado:      return "Micas de color a elección del paciente"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .transparente:   return "mica-transparente"
+        case .antiReflejante: return "mica-sencilla"
+        case .blueRay:        return "mica-blue"
+        case .fotoCromatico:  return "mica-transition"
+        case .fotoBlue:       return "mica-blue"
+        case .polarizado:     return "mica-transparente"
+        case .entintado:      return "mica-transparente"
+        }
+    }
+
+    /// Precio fijo de venta (0 = requiere selección de tier)
+    var fixedSalePrice: Int {
+        switch self {
+        case .transparente:   return 600
+        case .antiReflejante: return 0   // depende del tier / Rx
+        case .blueRay:        return 0   // depende del tier / Rx
+        case .fotoCromatico:  return 0
+        case .fotoBlue:       return 0
+        case .polarizado:     return 0
+        case .entintado:      return 0
+        }
+    }
+
+    /// Costo fijo (0 = requiere selección de tier)
+    var fixedCostPrice: Int {
+        switch self {
+        case .transparente: return 18
+        default:            return 0
+        }
+    }
+
+    var hasTiers: Bool { self == .antiReflejante || self == .blueRay }
+}
+
+// MARK: - Treatment Tier (graduated pricing based on Rx)
+
+struct TreatmentTier: Identifiable, Equatable {
+    let id: Int
+    let name: String
+    let sphereLabel: String
+    let cylinderLabel: String
+    let salePrice: Int
+    let costPrice: Int
+    /// Sphere must be within [minSphere, maxSphere]
+    let minSphere: Double
+    let maxSphere: Double
+    /// |Cylinder| must be within [minCylAbs, maxCylAbs]
+    let minCylAbs: Double
+    let maxCylAbs: Double
+
+    func matches(sphere: Double, cylAbs: Double) -> Bool {
+        sphere >= minSphere && sphere <= maxSphere
+            && cylAbs >= minCylAbs && cylAbs <= maxCylAbs
+    }
+}
+
+extension LensTreatmentType {
+    var tiers: [TreatmentTier] {
+        switch self {
+        case .antiReflejante:
+            return [
+                TreatmentTier(id: 1, name: "Graduación básica",
+                              sphereLabel: "-8.00 a +6.00",
+                              cylinderLabel: "-0.25 a -2.00",
+                              salePrice: 1000, costPrice: 256,
+                              minSphere: -8, maxSphere: 6,
+                              minCylAbs: 0.25, maxCylAbs: 2.00),
+                TreatmentTier(id: 2, name: "Graduación intermedia",
+                              sphereLabel: "-6.00 a +4.00",
+                              cylinderLabel: "-2.25 a -4.00",
+                              salePrice: 1900, costPrice: 80,
+                              minSphere: -6, maxSphere: 4,
+                              minCylAbs: 2.25, maxCylAbs: 4.00),
+                TreatmentTier(id: 3, name: "Graduación alta",
+                              sphereLabel: "-6.00 a +4.00",
+                              cylinderLabel: "-4.25 a -6.00",
+                              salePrice: 2100, costPrice: 90,
+                              minSphere: -6, maxSphere: 4,
+                              minCylAbs: 4.25, maxCylAbs: 6.00),
+            ]
+        case .blueRay:
+            return [
+                TreatmentTier(id: 1, name: "Graduación básica",
+                              sphereLabel: "+4.00 a -6.00",
+                              cylinderLabel: "-0.25 a -2.00",
+                              salePrice: 1600, costPrice: 200,
+                              minSphere: -6, maxSphere: 4,
+                              minCylAbs: 0.25, maxCylAbs: 2.00),
+                TreatmentTier(id: 2, name: "Graduación intermedia",
+                              sphereLabel: "±4.00",
+                              cylinderLabel: "-2.25 a -4.00",
+                              salePrice: 2200, costPrice: 260,
+                              minSphere: -4, maxSphere: 4,
+                              minCylAbs: 2.25, maxCylAbs: 4.00),
+                TreatmentTier(id: 3, name: "Graduación alta",
+                              sphereLabel: "0 a -4.00",
+                              cylinderLabel: "-4.25 a -6.00",
+                              salePrice: 2400, costPrice: 340,
+                              minSphere: -4, maxSphere: 0,
+                              minCylAbs: 4.25, maxCylAbs: 6.00),
+            ]
+        default: return []
+        }
+    }
+}
+
 enum LensWizardStep {
     case category
     case frameType
     case brandFrameDetails   // solo cuando se elige Armazón de Marca
-    case micaType
+    case treatment           // Tipo de Tratamiento (Visión Sencilla)
+    case treatmentTier       // Tier de Rx para Anti-reflejante / Blue-ray
+    case micaType            // Tipo de mica (Bifocales / Progresivas)
     case transitionColor
     case thickness
     case detail
@@ -259,7 +392,13 @@ private func isIncluded(base: Int, current: Int) -> Bool {
 struct LensPickerSheet: View {
     @Binding var lensType: String
     @Binding var lensCost: String
-    var onDismiss: () -> Void
+    /// Prescripción del paciente (para sugerir tier automáticamente).
+    /// Pasa el valor de esfera más alejado de 0 en cualquiera de los dos ojos.
+    var rxSph: Double? = nil
+    /// Pasa el valor absoluto más alto de cilindro entre OD y OS.
+    var rxCylAbs: Double? = nil
+    /// Called when the user confirms a selection. Receives the total sale price.
+    var onDismiss: (Int) -> Void
 
     @State private var step: LensWizardStep = .category
     @State private var isGoingForward = true
@@ -268,6 +407,10 @@ struct LensPickerSheet: View {
     @State private var selectedMica: MicaType? = nil
     @State private var selectedColor: TransitionColor? = nil
     @State private var selectedThickness: LensThickness? = nil
+
+    // Tratamiento (Visión Sencilla)
+    @State private var selectedTreatment: LensTreatmentType? = nil
+    @State private var selectedTier: TreatmentTier? = nil
 
     // Armazón de Marca
     @State private var brandName: String = ""
@@ -283,6 +426,8 @@ struct LensPickerSheet: View {
         case .category:          return "Tipo de lente"
         case .frameType:         return "Tipo de armazón"
         case .brandFrameDetails: return "Datos del armazón"
+        case .treatment:         return "Tipo de tratamiento"
+        case .treatmentTier:     return selectedTreatment?.rawValue ?? "Graduación"
         case .micaType:          return "Tipo de mica"
         case .transitionColor:   return "Color Transitions"
         case .thickness:         return "Grosor de mica"
@@ -295,6 +440,8 @@ struct LensPickerSheet: View {
         case .category:          return "Selecciona la categoría que necesita el paciente"
         case .frameType:         return "Elige el armazón para el paciente"
         case .brandFrameDetails: return "Ingresa la marca, precio de venta y costo del armazón"
+        case .treatment:         return "Elige el tratamiento para las micas del paciente"
+        case .treatmentTier:     return "Selecciona el rango según la graduación del paciente"
         case .micaType:          return "Elige el tipo de tratamiento para las micas"
         case .transitionColor:   return "Selecciona el color de tu mica Transitions"
         case .thickness:         return "Define el grosor de la mica"
@@ -314,6 +461,10 @@ struct LensPickerSheet: View {
                 step = .category
             case .brandFrameDetails:
                 step = .frameType
+            case .treatment:
+                step = selectedFrame == .armazonDeMarca ? .brandFrameDetails : .frameType
+            case .treatmentTier:
+                step = .treatment
             case .micaType:
                 step = selectedFrame == .armazonDeMarca ? .brandFrameDetails : .frameType
             case .transitionColor:
@@ -323,6 +474,8 @@ struct LensPickerSheet: View {
             case .detail:
                 if selectedCategory == .soloArmazon {
                     step = selectedFrame == .armazonDeMarca ? .brandFrameDetails : .frameType
+                } else if selectedCategory == .visionSencilla {
+                    step = selectedTreatment?.hasTiers == true ? .treatmentTier : .treatment
                 } else {
                     step = .thickness
                 }
@@ -344,6 +497,8 @@ struct LensPickerSheet: View {
                     step = .brandFrameDetails
                 } else if selectedCategory == .soloArmazon {
                     step = .detail
+                } else if selectedCategory == .visionSencilla {
+                    step = .treatment
                 } else {
                     step = .micaType
                 }
@@ -351,8 +506,22 @@ struct LensPickerSheet: View {
 
         case .brandFrameDetails:
             withAnimation(.easeInOut(duration: 0.26)) {
-                step = selectedCategory == .soloArmazon ? .detail : .micaType
+                if selectedCategory == .soloArmazon { step = .detail }
+                else if selectedCategory == .visionSencilla { step = .treatment }
+                else { step = .micaType }
             }
+
+        case .treatment:
+            guard let t = selectedTreatment else { return }
+            if t.hasTiers {
+                autoSelectTier()
+                withAnimation(.easeInOut(duration: 0.26)) { step = .treatmentTier }
+            } else {
+                withAnimation(.easeInOut(duration: 0.26)) { step = .detail }
+            }
+
+        case .treatmentTier:
+            withAnimation(.easeInOut(duration: 0.26)) { step = .detail }
 
         case .micaType:
             withAnimation(.easeInOut(duration: 0.26)) {
@@ -370,6 +539,14 @@ struct LensPickerSheet: View {
         }
     }
 
+    /// Auto-selecciona el tier que coincide con la Rx del paciente (si está disponible).
+    private func autoSelectTier() {
+        guard let t = selectedTreatment, let sph = rxSph, let cyl = rxCylAbs else { return }
+        if let match = t.tiers.first(where: { $0.matches(sphere: sph, cylAbs: cyl) }) {
+            selectedTier = match
+        }
+    }
+
     private var nextEnabled: Bool {
         switch step {
         case .category:          return selectedCategory != nil
@@ -377,6 +554,8 @@ struct LensPickerSheet: View {
         case .brandFrameDetails:
             return !brandName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && !brandSalePrice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .treatment:         return selectedTreatment != nil
+        case .treatmentTier:     return selectedTier != nil
         case .micaType:          return selectedMica != nil
         case .transitionColor:   return selectedColor != nil
         case .thickness:         return selectedThickness != nil
@@ -402,12 +581,36 @@ struct LensPickerSheet: View {
         return frame.costPrice
     }
 
+    private var currentTreatmentSalePrice: Int {
+        guard let t = selectedTreatment else { return 0 }
+        if t.hasTiers { return selectedTier?.salePrice ?? 0 }
+        return t.fixedSalePrice
+    }
+
+    private var currentTreatmentCostPrice: Int {
+        guard let t = selectedTreatment else { return 0 }
+        if t.hasTiers { return selectedTier?.costPrice ?? 0 }
+        return t.fixedCostPrice
+    }
+
     private var currentMicaPrice: Int {
         guard let cat = selectedCategory, let mica = selectedMica, let thick = selectedThickness else { return 0 }
         return micaPrice(category: cat, mica: mica, color: selectedColor, thickness: thick)
     }
 
-    private var totalSalePrice: Int { currentFrameSalePrice + currentMicaPrice }
+    private var totalSalePrice: Int {
+        if selectedCategory == .visionSencilla {
+            return currentFrameSalePrice + currentTreatmentSalePrice
+        }
+        return currentFrameSalePrice + currentMicaPrice
+    }
+
+    private var totalCostPrice: Int {
+        if selectedCategory == .visionSencilla {
+            return currentFrameCostPrice + currentTreatmentCostPrice
+        }
+        return currentFrameCostPrice
+    }
 
     private func confirmSelection() {
         guard let cat = selectedCategory, let frame = selectedFrame else { return }
@@ -422,6 +625,12 @@ struct LensPickerSheet: View {
         var result: String
         if cat == .soloArmazon {
             result = "Solo Armazón · \(frameName) · \(formattedPrice(currentFrameSalePrice))"
+        } else if cat == .visionSencilla, let t = selectedTreatment {
+            var tierStr = ""
+            if t.hasTiers, let tier = selectedTier {
+                tierStr = " · \(tier.name)"
+            }
+            result = "\(cat.rawValue) · \(frameName) · \(t.rawValue)\(tierStr) · \(formattedPrice(totalSalePrice))"
         } else if let mica = selectedMica, let thick = selectedThickness {
             let colorStr = selectedColor.map { " \($0.rawValue)" } ?? ""
             let micaLabel = mica == .transitions ? "Transitions\(colorStr)" : mica.rawValue
@@ -431,7 +640,8 @@ struct LensPickerSheet: View {
         }
 
         lensType = result
-        lensCost = "\(currentFrameCostPrice)"
+        lensCost = "\(totalCostPrice)"
+        onDismiss(totalSalePrice)
         dismiss()
     }
 
@@ -457,6 +667,8 @@ struct LensPickerSheet: View {
                             case .category:          categoryStep
                             case .frameType:         frameTypeStep
                             case .brandFrameDetails: brandFrameDetailsStep
+                            case .treatment:         treatmentStep
+                            case .treatmentTier:     treatmentTierStep
                             case .micaType:          micaTypeStep
                             case .transitionColor:   transitionColorStep
                             case .thickness:         thicknessStep
@@ -553,6 +765,8 @@ struct LensPickerSheet: View {
                     selectedMica = nil
                     selectedColor = nil
                     selectedThickness = nil
+                    selectedTreatment = nil
+                    selectedTier = nil
                 }
             }
         }
@@ -617,6 +831,136 @@ struct LensPickerSheet: View {
                 .padding(.vertical, 10)
                 .background(BrandColors.fieldBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+    }
+
+    // MARK: - Treatment Step
+
+    private var treatmentStep: some View {
+        VStack(spacing: 12) {
+            ForEach(LensTreatmentType.allCases, id: \.self) { t in
+                let isSelected = selectedTreatment == t
+                let badge: String? = t.fixedSalePrice > 0
+                    ? formattedPrice(t.fixedSalePrice)
+                    : (t.hasTiers ? "Varía con Rx" : nil)
+                let badgeNeutral = !t.hasTiers
+
+                OptionCard(
+                    assetImage: t.icon,
+                    title: t.rawValue,
+                    subtitle: t.subtitle,
+                    badge: badge,
+                    badgeIsNeutral: badgeNeutral,
+                    isSelected: isSelected
+                ) {
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.80)) {
+                        selectedTreatment = t
+                    }
+                    selectedTier = nil
+                }
+            }
+        }
+    }
+
+    private func isTierSuggested(_ tier: TreatmentTier) -> Bool {
+        guard let sph = rxSph, let cyl = rxCylAbs else { return false }
+        return tier.matches(sphere: sph, cylAbs: cyl)
+    }
+
+    // MARK: - Treatment Tier Step
+
+    private var treatmentTierStep: some View {
+        let tiers = selectedTreatment?.tiers ?? []
+        let hasPrescription = rxSph != nil && rxCylAbs != nil
+
+        return VStack(spacing: 12) {
+            if hasPrescription {
+                HStack(spacing: 8) {
+                    Image(systemName: "stethoscope.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(BrandColors.primary)
+                    Text("La opción sugerida se basa en la Rx del paciente")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(BrandColors.secondary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(BrandColors.primary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            ForEach(tiers) { tier in
+                let isSelected = selectedTier == tier
+                let isSuggested = hasPrescription && isTierSuggested(tier)
+
+                Button {
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.80)) {
+                        selectedTier = tier
+                    }
+                } label: {
+                    HStack(spacing: 14) {
+                        // Rx range info
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text(tier.name)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(isSelected ? BrandColors.primary : .primary)
+                                if isSuggested {
+                                    Text("Sugerido")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(BrandColors.primary)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            HStack(spacing: 16) {
+                                Label(tier.sphereLabel, systemImage: "circle.lefthalf.filled")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                Label(tier.cylinderLabel, systemImage: "oval.lefthalf.filled")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer(minLength: 0)
+
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(formattedPrice(tier.salePrice))
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(isSelected ? BrandColors.primary : .primary)
+                            Text("Costo: $\(tier.costPrice)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20))
+                            .foregroundStyle(isSelected ? BrandColors.primary : Color.secondary.opacity(0.4))
+                    }
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(isSelected ? BrandColors.primary.opacity(0.12)
+                                  : isSuggested ? BrandColors.accent.opacity(0.06)
+                                  : BrandColors.cardFill)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(
+                                isSelected ? BrandColors.primary.opacity(0.55)
+                                    : isSuggested ? BrandColors.primary.opacity(0.25)
+                                    : BrandColors.accent.opacity(0.20),
+                                lineWidth: isSelected ? 1.5 : 1
+                            )
+                    )
+                    .shadow(color: BrandColors.secondary.opacity(isSelected ? 0.10 : 0.04), radius: 8, x: 0, y: 3)
+                }
+                .buttonStyle(BounceButtonStyle())
+                .animation(.easeOut(duration: 0.18), value: isSelected)
+            }
         }
     }
 
@@ -736,8 +1080,36 @@ struct LensPickerSheet: View {
                     }
                 }
 
-                // Mica (si aplica)
-                if selectedCategory != .soloArmazon, let mica = selectedMica, let thick = selectedThickness {
+                // Tratamiento – Visión Sencilla
+                if selectedCategory == .visionSencilla, let t = selectedTreatment {
+                    detailRow(label: "Tratamiento", value: t.rawValue)
+                    Divider().opacity(0.5)
+                    if t.hasTiers, let tier = selectedTier {
+                        detailRow(label: "Graduación", value: tier.name)
+                        Divider().opacity(0.5)
+                        detailRow(label: "Precio tratamiento",
+                                  value: formattedPrice(tier.salePrice), bold: false)
+                        Divider().opacity(0.5)
+                        if tier.costPrice > 0 {
+                            detailRow(label: "Costo tratamiento",
+                                      value: "$\(tier.costPrice)", secondary: true)
+                            Divider().opacity(0.5)
+                        }
+                    } else if t.fixedSalePrice > 0 {
+                        detailRow(label: "Precio tratamiento",
+                                  value: formattedPrice(t.fixedSalePrice), bold: false)
+                        Divider().opacity(0.5)
+                        if t.fixedCostPrice > 0 {
+                            detailRow(label: "Costo tratamiento",
+                                      value: "$\(t.fixedCostPrice)", secondary: true)
+                            Divider().opacity(0.5)
+                        }
+                    }
+                }
+
+                // Mica (Bifocales / Progresivas)
+                if selectedCategory != .soloArmazon, selectedCategory != .visionSencilla,
+                   let mica = selectedMica, let thick = selectedThickness {
                     let colorStr = selectedColor.map { " \($0.rawValue)" } ?? ""
                     let micaLabel = mica == .transitions ? "Transitions\(colorStr) · \(thick.rawValue)" : "\(mica.rawValue) · \(thick.rawValue)"
                     detailRow(label: "Mica", value: micaLabel)

@@ -74,6 +74,10 @@ struct PaymentStep4Screen: View {
         appliedCodes.count < 3
     }
 
+    private var isCourtesy: Bool {
+        encounter.payStatus == "Cortesía"
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -87,6 +91,21 @@ struct PaymentStep4Screen: View {
             .padding(.bottom, 28)
         }
         .onAppear { loadExistingDiscounts() }
+        .onChange(of: encounter.payStatus) {
+            if encounter.payStatus == "Cortesía" {
+                clearDiscounts()
+                encounter.payTotal     = "N/A"
+                encounter.payMethod    = "N/A"
+                encounter.payReference = "N/A"
+                encounter.payDeposit   = "N/A"
+            } else {
+                // Restore to blank so user can fill in fresh
+                if encounter.payTotal     == "N/A" { encounter.payTotal     = "" }
+                if encounter.payMethod    == "N/A" { encounter.payMethod    = "" }
+                if encounter.payReference == "N/A" { encounter.payReference = "" }
+                if encounter.payDeposit   == "N/A" { encounter.payDeposit   = "" }
+            }
+        }
         .alert("Total modificado", isPresented: $showTotalChangedAlert) {
             Button("Quitar descuentos", role: .destructive) { clearDiscounts() }
             Button("Cancelar", role: .cancel) {
@@ -184,6 +203,7 @@ struct PaymentStep4Screen: View {
         VStack(spacing: 16) {
             sectionHeader(icon: "creditcard.fill", title: "Estatus y método")
 
+            // ── Status row (always active) ────────────────────────────────
             HStack(spacing: 12) {
                 FieldRow("Estatus", required: true, error: errors["payStatus"]) {
                     menuPickerInput(
@@ -203,67 +223,101 @@ struct PaymentStep4Screen: View {
                         isError: errors["payTotal"] != nil
                     )
                     .keyboardType(.decimalPad)
+                    .disabled(isCourtesy)
                     .onChange(of: encounter.payTotal) {
+                        guard !isCourtesy else { return }
                         if appliedCodes.isEmpty {
-                            // Sin descuentos: mantener base en sync
                             baseTotal = encounter.payTotal
                         } else {
-                            // Con descuentos activos: pedir confirmación
                             showTotalChangedAlert = true
                         }
                     }
                 }
             }
 
-            HStack(spacing: 12) {
-                FieldRow("Método", required: true, error: errors["payMethod"]) {
-                    menuPickerInput(
-                        icon: "creditcard.and.123",
-                        selection: $encounter.payMethod,
-                        placeholder: "Selecciona…",
-                        isError: errors["payMethod"] != nil,
-                        options: ["Efectivo", "Tarjeta", "Transferencia", "Mixto"]
-                    )
+            // ── Cortesía banner ───────────────────────────────────────────
+            if isCourtesy {
+                HStack(spacing: 10) {
+                    Image(systemName: "gift.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BrandColors.primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Cortesía activa")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(BrandColors.primary)
+                        Text("Todos los campos de pago han sido fijados en N/A y están bloqueados.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
                 }
-
-                FieldRow("Referencia", required: true, error: errors["payReference"]) {
-                    iconTextField(
-                        icon: "number.circle.fill",
-                        placeholder: "",
-                        text: $encounter.payReference,
-                        isError: errors["payReference"] != nil
-                    )
-                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(BrandColors.primary.opacity(0.07))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(BrandColors.primary.opacity(0.20), lineWidth: 1)
+                        )
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            HStack(spacing: 12) {
-                FieldRow("A cuenta (anticipo)") {
-                    iconTextField(
-                        icon: "arrow.down.circle.fill",
-                        placeholder: "0.00",
-                        text: $encounter.payDeposit,
-                        isError: false
-                    )
-                    .keyboardType(.decimalPad)
+            // ── Fields locked when Cortesía ───────────────────────────────
+            Group {
+                HStack(spacing: 12) {
+                    FieldRow("Método", required: true, error: errors["payMethod"]) {
+                        menuPickerInput(
+                            icon: "creditcard.and.123",
+                            selection: $encounter.payMethod,
+                            placeholder: "Selecciona…",
+                            isError: errors["payMethod"] != nil,
+                            options: ["Efectivo", "Tarjeta", "Transferencia", "Mixto"]
+                        )
+                    }
+
+                    FieldRow("Referencia", required: true, error: errors["payReference"]) {
+                        iconTextField(
+                            icon: "number.circle.fill",
+                            placeholder: "",
+                            text: $encounter.payReference,
+                            isError: errors["payReference"] != nil
+                        )
+                    }
                 }
 
-                FieldRow("Costo lente (inversión)") {
-                    iconTextField(
-                        icon: "tag.fill",
-                        placeholder: "0.00",
-                        text: $encounter.lensCost,
-                        isError: false
-                    )
-                    .keyboardType(.decimalPad)
+                HStack(spacing: 12) {
+                    FieldRow("A cuenta (anticipo)") {
+                        iconTextField(
+                            icon: "arrow.down.circle.fill",
+                            placeholder: "0.00",
+                            text: $encounter.payDeposit,
+                            isError: false
+                        )
+                        .keyboardType(.decimalPad)
+                    }
+
+                    FieldRow("Costo lente (inversión)") {
+                        iconTextField(
+                            icon: "tag.fill",
+                            placeholder: "0.00",
+                            text: $encounter.lensCost,
+                            isError: false
+                        )
+                        .keyboardType(.decimalPad)
+                    }
                 }
+
+                Divider().opacity(0.35)
+
+                // ── Discount section ──────────────────────────────────────
+                discountSection
+
+                Divider().opacity(0.35)
             }
-
-            Divider().opacity(0.35)
-
-            // ── Discount section ──────────────────────────────────────────
-            discountSection
-
-            Divider().opacity(0.35)
+            .disabled(isCourtesy)
+            .opacity(isCourtesy ? 0.40 : 1.0)
+            .animation(.easeInOut(duration: 0.2), value: isCourtesy)
 
             sectionHeader(icon: "note.text", title: "Notas")
 

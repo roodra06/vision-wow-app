@@ -27,6 +27,7 @@ struct SectionCard<Content: View>: View {
 
             content
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(.white)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))

@@ -35,7 +35,7 @@ enum PDFAntecedents {
         var idx = 0
         while idx < cards.count {
             let row = Array(cards[idx..<min(idx + cols, cards.count)])
-            let cardH: CGFloat = 118
+            let cardH: CGFloat = 96
 
             for c in 0..<row.count {
                 let cx = x + CGFloat(c) * (colW + gap)
@@ -43,7 +43,7 @@ enum PDFAntecedents {
                 PDFCards.drawCheckCard(title: row[c].0, items: row[c].1, in: rect)
             }
 
-            yy += cardH + 10
+            yy += cardH + 8
             idx += cols
         }
 

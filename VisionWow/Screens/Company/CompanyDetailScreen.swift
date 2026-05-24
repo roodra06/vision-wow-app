@@ -56,18 +56,18 @@ struct CompanyDetailScreen: View {
                 .offset(x: -140, y: 300)
 
             if let company {
-                GeometryReader { geo in
+                ScrollView {
                     VStack(spacing: 12) {
-                        heroHeader(company: company, height: geo.size.height * 0.48)
+                        heroHeader(company: company)
                             .entrance(delay: 0.06)
 
                         patientsSection(company: company)
                             .padding(.horizontal, 16)
                             .entrance(delay: 0.18)
 
-                        Spacer(minLength: 0)
+                        Spacer(minLength: 24)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .frame(maxWidth: .infinity, alignment: .top)
                 }
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -146,7 +146,7 @@ struct CompanyDetailScreen: View {
 
     // MARK: - Hero Header
 
-    private func heroHeader(company: Company, height: CGFloat) -> some View {
+    private func heroHeader(company: Company) -> some View {
         return ZStack {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(BrandColors.cardGradient)
@@ -285,7 +285,6 @@ struct CompanyDetailScreen: View {
             }
             .padding(18)
         }
-        .frame(height: height)
         .padding(.horizontal, 16)
         .padding(.top, 12)
     }
@@ -323,7 +322,7 @@ struct CompanyDetailScreen: View {
                         )
                 )
             } else {
-                VStack(spacing: 10) {
+                LazyVStack(spacing: 10) {
                     ForEach(Array(company.encounters.sorted { $0.createdAt > $1.createdAt }.enumerated()), id: \.element.id) { index, e in
                         NavigationLink {
                             EditEncounterWizardScreen(company: company, encounter: e)

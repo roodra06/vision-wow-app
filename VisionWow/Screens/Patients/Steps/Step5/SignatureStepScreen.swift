@@ -22,6 +22,7 @@ struct SignatureStepScreen: View {
     @State private var recorder = FrontCameraRecorder()
     @State private var isRecording = false
     @State private var cameraAuthDenied = false
+    @State private var recordingPulse = false
     @State private var pdfError: String? = nil
     @State private var shareURL: URL? = nil
 
@@ -52,21 +53,36 @@ struct SignatureStepScreen: View {
 
                 if phase == .complete {
                     completionCard
+                        .transition(.scale(scale: 0.88, anchor: .center).combined(with: .opacity))
                     completionButtons
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else {
                     // Header de paso
                     stepHeader
+                        .id(phase)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal:   .move(edge: .leading).combined(with: .opacity)
+                        ))
 
                     // Resumen de cobro (solo en fase paciente)
                     if phase == .patient {
                         summaryCard
+                            .transition(.move(edge: .leading).combined(with: .opacity))
                     }
 
                     // Canvas de firma
                     signatureCard
+                        .id(phase)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal:   .move(edge: .leading).combined(with: .opacity)
+                        ))
 
                     // Botones de acción
                     actionButtons
+                        .id(phase)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 16)
@@ -294,6 +310,13 @@ struct SignatureStepScreen: View {
                 Circle()
                     .fill(BrandColors.danger)
                     .frame(width: 10, height: 10)
+                    .scaleEffect(recordingPulse ? 1.4 : 1.0)
+                    .opacity(recordingPulse ? 0.65 : 1.0)
+                    .animation(
+                        .easeInOut(duration: 0.70).repeatForever(autoreverses: true),
+                        value: recordingPulse
+                    )
+                    .onAppear { recordingPulse = true }
                     .padding(4)
             }
         }
@@ -464,7 +487,7 @@ struct SignatureStepScreen: View {
     private func confirmPatientSignature() {
         encounter.patientSignatureData = patientCanvas.exportPNG()
         recorder.stopRecording()
-        withAnimation {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
             phase = .optometrist
         }
     }
@@ -472,7 +495,7 @@ struct SignatureStepScreen: View {
     private func confirmOptometristSignatureAndFinish() {
         encounter.optometristSignatureData = optometristCanvas.exportPNG()
         recorder.stopSession()
-        withAnimation {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
             phase = .complete
         }
     }

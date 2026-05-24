@@ -535,16 +535,31 @@ extension FaceCameraViewController: AVCapturePhotoCaptureDelegate {
 // MARK: - UIImage orientation fix
 
 private extension UIImage {
-    /// Redraws the image so its orientation is always .up, fixing the 90° rotation
-    /// that can appear when the front camera captures in landscape.
-    /// Always redraws (no early-out on .up) because AVCapturePhotoOutput sometimes
-    /// embeds .up in EXIF while leaving the pixel data in portrait layout.
+    /// Normalizes orientation for front-camera landscape captures.
+    /// AVCapturePhotoOutput defaults to portrait orientation, so the JPEG arrives
+    /// as a tall portrait buffer (1080×1920) with the landscape scene stored sideways.
+    /// Step 1: bake in any EXIF rotation via UIKit drawing.
+    /// Step 2: if the result is still portrait (height > width), rotate 90° CW
+    ///         so the face appears upright in the result view.
     func normalizedOrientation() -> UIImage {
+        // Step 1 — apply embedded EXIF orientation
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = scale
-        let renderer = UIGraphicsImageRenderer(size: size, format: fmt)
-        return renderer.image { _ in
-            draw(in: CGRect(origin: .zero, size: size))
+        let base = UIGraphicsImageRenderer(size: size, format: fmt)
+            .image { _ in draw(in: CGRect(origin: .zero, size: size)) }
+
+        // Step 2 — if still portrait, the landscape scene is stored sideways;
+        //           rotate 90° CW to make the face upright.
+        guard base.size.height > base.size.width else { return base }
+
+        let landSize = CGSize(width: base.size.height, height: base.size.width)
+        let fmt2 = UIGraphicsImageRendererFormat()
+        fmt2.scale = scale
+        return UIGraphicsImageRenderer(size: landSize, format: fmt2).image { _ in
+            let ctx = UIGraphicsGetCurrentContext()!
+            ctx.translateBy(x: landSize.width, y: 0)
+            ctx.rotate(by: .pi / 2)   // 90° CW in UIKit coordinate space
+            base.draw(in: CGRect(origin: .zero, size: base.size))
         }
     }
 }

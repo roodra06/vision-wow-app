@@ -19,6 +19,7 @@ struct EncounterWizardView: View {
 
     @State private var stepIndex: Int = 0
     @State private var errors: [String: String] = [:]
+    @State private var isGoingForward = true
 
     // ✅ Intermedia (handoff)
     @State private var goHandoff = false
@@ -96,6 +97,19 @@ struct EncounterWizardView: View {
                     }
                 }
             }
+            .id(stepIndex)
+            .transition(
+                isGoingForward
+                    ? .asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal:   .move(edge: .leading).combined(with: .opacity)
+                      )
+                    : .asymmetric(
+                        insertion: .move(edge: .leading).combined(with: .opacity),
+                        removal:   .move(edge: .trailing).combined(with: .opacity)
+                      )
+            )
+            .animation(.spring(response: 0.38, dampingFraction: 0.84), value: stepIndex)
             .padding(.top, 6)
 
             Spacer()
@@ -115,6 +129,22 @@ struct EncounterWizardView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    back()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(stepIndex == startIndex ? "Cancelar" : "Atrás")
+                            .font(.system(size: 16))
+                    }
+                    .foregroundStyle(BrandColors.primary)
+                }
+            }
+        }
         .onAppear {
             guard !didInit else { return }
             didInit = true
@@ -136,6 +166,7 @@ struct EncounterWizardView: View {
     // MARK: - Back
 
     private func back() {
+        isGoingForward = false
         if stepIndex <= startIndex {
             onCancel()
         } else {
@@ -147,6 +178,7 @@ struct EncounterWizardView: View {
     // MARK: - Next
 
     private func next() {
+        isGoingForward = true
         errors = validate(step: currentStep)
         guard errors.isEmpty else { return }
 

@@ -46,9 +46,11 @@ struct Accordion<Content: View>: View {
 
                     Spacer()
 
-                    Image(systemName: isOpen ? "chevron.up" : "chevron.down")
+                    Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(BrandColors.secondary.opacity(0.65))
+                        .rotationEffect(.degrees(isOpen ? 180 : 0))
+                        .animation(.spring(response: 0.30, dampingFraction: 0.68), value: isOpen)
                 }
                 .padding(12)
                 .background(

@@ -42,9 +42,9 @@ struct HomeScreen: View {
     }
 
     private var header: some View {
-        SectionCard(title: "Vision Wow • Registros", subtitle: "Crea y administra evaluaciones.") {
+        SectionCard(title: "Vision Wow \u{2022} Registros", subtitle: "Crea y administra evaluaciones.") {
             HStack(spacing: 12) {
-                TextField("Buscar por nombre, empresa o ID…", text: $search)
+                TextField("Buscar por nombre, empresa o ID\u{2026}", text: $search)
                     .textFieldStyle(.roundedBorder)
 
                 Button {
@@ -63,41 +63,46 @@ struct HomeScreen: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
             }
+
         }
     }
 
     private var listCard: some View {
-        SectionCard(title: "Listado", subtitle: filtered.isEmpty ? "No hay registros aún." : "\(filtered.count) registro(s)") {
+        SectionCard(title: "Listado", subtitle: filtered.isEmpty ? "No hay registros a\u{FA}n." : "\(filtered.count) registro(s)") {
             if filtered.isEmpty {
-                Text("Crea un registro con el botón “Nuevo”.")
+                Text("Crea un registro con el bot\u{F3}n \"Nuevo\".")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 14))
             } else {
                 VStack(spacing: 0) {
-                    ForEach(filtered) { e in
+                    ForEach(Array(filtered.enumerated()), id: \.element.id) { idx, e in
                         NavigationLink {
                             FlowCoordinator(encounter: e)
                         } label: {
                             row(e)
                         }
                         .buttonStyle(.plain)
+                        .entrance(delay: Double(idx) * 0.045)
 
                         Divider().opacity(0.2)
                     }
                 }
+                .animation(.spring(response: 0.42, dampingFraction: 0.82), value: filtered.count)
             }
         }
     }
 
     private func row(_ e: Encounter) -> some View {
-        let name = "\(e.patient?.firstName ?? "") \(e.patient?.lastName ?? "")"
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstName = e.patient?.firstName ?? ""
+        let lastName = e.patient?.lastName ?? ""
+        let name = "\(firstName) \(lastName)".trimmingCharacters(in: .whitespacesAndNewlines)
         return HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(name.isEmpty ? "Sin nombre" : name)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color(.label))
-                Text("\(e.companyName.isEmpty ? "Sin empresa" : e.companyName) • ID: \(e.id)")
+                let company = e.companyName.isEmpty ? "Sin empresa" : e.companyName
+                Text("\(company) \u{2022} ID: \(e.id)")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -109,4 +114,3 @@ struct HomeScreen: View {
         .padding(.vertical, 10)
     }
 }
-

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/rod-dev/Desktop/**)",
+      "Bash(xcodebuild -scheme VisionWow -destination 'platform=iOS Simulator,name=iPhone 16' -quiet build)",
+      "Bash(xcodebuild -scheme VisionWow -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(ls /Applications/Xcode*.app)",
+      "Read(//Users/rod-dev/Applications/**)",
+      "Bash(mdfind \"kMDItemCFBundleIdentifier == 'com.apple.dt.Xcode'\")",
+      "Bash(DEVELOPER_DIR=/Users/rod-dev/Downloads/Xcode.app/Contents/Developer /Users/rod-dev/Downloads/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project /Users/rod-dev/Desktop/VisionWow/VisionWow/VisionWow.xcodeproj -scheme VisionWow -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(DEVELOPER_DIR=/Users/rod-dev/Downloads/Xcode.app/Contents/Developer /Users/rod-dev/Downloads/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project /Users/rod-dev/Desktop/VisionWow/VisionWow/VisionWow.xcodeproj -scheme VisionWow -destination generic/platform=iOS build)",
+      "Bash(DEVELOPER_DIR=/Users/rod-dev/Downloads/Xcode.app/Contents/Developer /Users/rod-dev/Downloads/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project VisionWow.xcodeproj -scheme VisionWow -destination generic/platform=iOS build)",
+      "Bash(cat .claude/*.md)",
+      "Bash(xcodebuild -project VisionWow.xcodeproj -scheme VisionWow -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(xcodebuild -version)",
+      "Bash(DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project /Users/rod-dev/Desktop/VisionWow/VisionWow/VisionWow.xcodeproj -scheme VisionWow -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(DEVELOPER_DIR=/Users/rod-dev/Downloads/Xcode.app/Contents/Developer xcodebuild -project /Users/rod-dev/Desktop/VisionWow/VisionWow/VisionWow.xcodeproj -scheme VisionWow -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(DEVELOPER_DIR=/Users/rod-dev/Downloads/Xcode.app/Contents/Developer xcodebuild -project /Users/rod-dev/Desktop/VisionWow/VisionWow/VisionWow.xcodeproj -scheme VisionWow -destination 'generic/platform=iOS Simulator' build)",
+      "Bash(DEVELOPER_DIR=/Users/rod-dev/Downloads/Xcode.app/Contents/Developer xcodebuild -project /Users/rod-dev/Desktop/VisionWow/VisionWow/VisionWow.xcodeproj -scheme VisionWow -destination 'generic/platform=iOS Simulator' clean build)",
+      "Bash(xcodebuild -scheme VisionWow -destination 'platform=iOS Simulator,name=iPhone 16' -quiet)",
+      "Bash(xcode-select -s /Applications/Xcode.app/Contents/Developer)"
+    ]
+  }
+}
